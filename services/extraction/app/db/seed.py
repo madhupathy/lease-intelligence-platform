@@ -57,27 +57,34 @@ def seed_portfolio() -> None:
             logger.info("Leases table not empty — skipping portfolio seed")
             return
 
-        pdf_dir = _seed_pdf_dir()
-        pdfs = sorted(pdf_dir.glob("*.pdf"))
-        if not pdfs:
-            logger.warning("No PDFs found in %s — skipping portfolio seed", pdf_dir)
-            return
+    pdf_dir = _seed_pdf_dir()
+    pdfs = sorted(pdf_dir.glob("*.pdf"))
+    if not pdfs:
+        logger.warning("No PDFs found in %s — skipping portfolio seed", pdf_dir)
+        return
 
-        for pdf_path in pdfs:
-            content = pdf_path.read_bytes()
-            pages, _ = validate_upload_bytes(content, pdf_path.name)
-            document, _ = create_document_for_upload(
-                session=session,
-                content=content,
-                filename=pdf_path.name,
-                name=pdf_path.stem,
-                kind="base",
-                lease_id=None,
-                page_count=len(pages),
+    for pdf_path in pdfs:
+        try:
+            with SessionLocal() as session:
+                content = pdf_path.read_bytes()
+                pages, _ = validate_upload_bytes(content, pdf_path.name)
+                document, _ = create_document_for_upload(
+                    session=session,
+                    content=content,
+                    filename=pdf_path.name,
+                    name=pdf_path.stem,
+                    kind="base",
+                    lease_id=None,
+                    page_count=len(pages),
+                )
+                run_extraction(document.id, session)
+                session.commit()
+                logger.info("Seeded lease from %s (document_id=%s)", pdf_path.name, document.id)
+        except Exception:
+            logger.exception(
+                "Failed to seed lease from %s — skipping and continuing",
+                pdf_path.name,
             )
-            run_extraction(document.id, session)
-            session.commit()
-            logger.info("Seeded lease from %s (document_id=%s)", pdf_path.name, document.id)
 
 
 def main() -> None:
