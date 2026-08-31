@@ -1,0 +1,26 @@
+{
+  "_comment": "Gold label template. Keys match extracted_fields.field_key (DB flat keys). Group-prefixed aliases like financial.security_deposit are also accepted and normalized. Set _verified true after hand review.",
+  "pdf_stem": "example_lease_stem",
+  "lease_id": null,
+  "lease_name": null,
+  "fields": {
+    "landlord": {"value": null, "page": null, "_verified": false},
+    "tenant": {"value": null, "page": null, "_verified": false},
+    "premises_address": {"value": null, "page": null, "_verified": false},
+    "rentable_sqft": {"value": null, "page": null, "_verified": false},
+    "commencement_date": {"value": null, "page": null, "_verified": false},
+    "expiration_date": {"value": null, "page": null, "_verified": false},
+    "initial_term_months": {"value": null, "page": null, "_verified": false},
+    "base_rent_schedule": {"value": [], "page": null, "_verified": false},
+    "escalation_type": {"value": null, "page": null, "_verified": false},
+    "escalation_value": {"value": null, "page": null, "_verified": false},
+    "security_deposit": {"value": null, "page": null, "_verified": false},
+    "renewal_options": {"value": [], "page": null, "_verified": false},
+    "termination_option": {"value": null, "page": null, "_verified": false},
+    "holdover_rate_pct": {"value": null, "page": null, "_verified": false},
+    "cam_structure": {"value": null, "page": null, "_verified": false},
+    "base_year": {"value": null, "page": null, "_verified": false},
+    "cam_cap_pct": {"value": null, "page": null, "_verified": false},
+    "cam_cap_type": {"value": null, "page": null, "_verified": false}
+  }
+}
