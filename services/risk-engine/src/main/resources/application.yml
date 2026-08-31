@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: risk-engine
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/lease}
+    username: ${SPRING_DATASOURCE_USERNAME:lease}
+    password: ${SPRING_DATASOURCE_PASSWORD:lease}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+server:
+  port: ${PORT:8081}
+
+app:
+  version: 0.1.0
+  risk-critical-days: ${RISK_CRITICAL_DAYS:90}
+  risk-warning-days: ${RISK_WARNING_DAYS:180}
+  schedule-delay-ms: ${SCHEDULE_DELAY_MS:300000}

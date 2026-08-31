@@ -100,7 +100,7 @@ lease-intel/
 - `leases` (id, name, landlord, tenant, premises_address, status, created_at)
 - `documents` (id, lease_id, kind base|amendment, sha256 UNIQUE, filename, page_count, uploaded_at)
 - `extraction_runs` (id, document_id, prompt_version, model, temperature, tokens_in, tokens_out,
-  context_truncated bool, status, created_at) — UNIQUE(document_sha256, prompt_version, model) = idempotency cache
+  context_truncated bool, status, created_at) — UNIQUE(document_id, prompt_version, model) = idempotency cache
 - `extracted_fields` (id, run_id, lease_id, field_key, value_json, confidence numeric, page int,
   source_snippet text, needs_review bool, effective bool) — `effective` = post amendment-consolidation
 - `obligations` (id, lease_id, kind renewal_notice|expiration|rent_escalation|termination_option,

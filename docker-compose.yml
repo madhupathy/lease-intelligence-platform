@@ -1,0 +1,119 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: lease
+      POSTGRES_PASSWORD: lease
+      POSTGRES_DB: lease
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lease -d lease"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  extraction:
+    build:
+      context: .
+      dockerfile: services/extraction/Dockerfile
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql+psycopg://lease:lease@postgres:5432/lease
+      STORAGE_DIR: /app/storage
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      DEMO_USER: ${DEMO_USER:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo}
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-claude-sonnet-4-6}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      MAX_CONTEXT_TOKENS: ${MAX_CONTEXT_TOKENS:-12000}
+      REVIEW_THRESHOLD: ${REVIEW_THRESHOLD:-0.7}
+      RISK_CRITICAL_DAYS: ${RISK_CRITICAL_DAYS:-90}
+      RISK_WARNING_DAYS: ${RISK_WARNING_DAYS:-180}
+      SCHEDULE_DELAY_MS: ${SCHEDULE_DELAY_MS:-300000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  risk-engine:
+    build:
+      context: ./services/risk-engine
+    environment:
+      PORT: "8081"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lease
+      SPRING_DATASOURCE_USERNAME: lease
+      SPRING_DATASOURCE_PASSWORD: lease
+      RISK_CRITICAL_DAYS: ${RISK_CRITICAL_DAYS:-90}
+      RISK_WARNING_DAYS: ${RISK_WARNING_DAYS:-180}
+      SCHEDULE_DELAY_MS: ${SCHEDULE_DELAY_MS:-300000}
+      DB_VALIDATE_MAX_ATTEMPTS: "5"
+      DB_VALIDATE_RETRY_DELAY_SEC: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      extraction:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8081/api/alerts/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: ./web
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      EXTRACTION_UPSTREAM: extraction:8000
+      RISK_ENGINE_UPSTREAM: risk-engine:8081
+    depends_on:
+      extraction:
+        condition: service_healthy
+      risk-engine:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8080/api/health && wget -qO- http://localhost:8080/ || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

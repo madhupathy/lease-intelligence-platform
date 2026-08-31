@@ -1,0 +1,13 @@
+# Config-as-code for the extraction Railway service.
+# Create the service with Root Directory = repository root (.), Dockerfile path below.
+# See deploy/railway.md for the full monorepo setup (extraction-first, then others).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/extraction/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -1,0 +1,15 @@
+# Config-as-code for the gateway Railway service.
+# Create the service with Root Directory = repository root (.).
+# Point Railway "Config File" at gateway/railway.toml if the project already
+# has another railway.toml at the repo root.
+# See deploy/railway.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "gateway/Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

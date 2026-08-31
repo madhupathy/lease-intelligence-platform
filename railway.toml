@@ -1,0 +1,16 @@
+# Default Railway config for first-deploy (extraction only).
+# When adding gateway / risk-engine, create separate Railway services and set
+# each service's "Config File" path (see deploy/railway.md):
+#   - extraction → services/extraction/railway.toml (or this file)
+#   - risk-engine → services/risk-engine/railway.toml
+#   - gateway → gateway/railway.toml
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/extraction/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -1,0 +1,86 @@
+# Extend extraction coverage by editing this file — no code change required.
+# Field-group → section-signal routing (AGENTS.md §6, §7).
+# Consumed by app/agent/router.py and validated by app/agent/matrix.py.
+
+groups:
+  parties_premises:
+    section_tags: [parties, premises, demised_premises]
+    heading_signals:
+      - "(?i)\\b(parties|landlord|tenant|demised premises|leased premises|premises)\\b"
+      - "(?i)\\b(lessor|lessee|party of the first part|party of the second part)\\b"
+    keywords:
+      - landlord
+      - tenant
+      - lessee
+      - lessor
+      - demised premises
+      - leased premises
+      - premises address
+      - rentable square feet
+      - rentable sqft
+    priority: 10
+
+  term:
+    section_tags: [term, lease_term]
+    heading_signals:
+      - "(?i)\\b(term|commencement|expiration|lease term|initial term)\\b"
+      - "(?i)\\b(start date|end date|expiry|commencement date|expiration date)\\b"
+    keywords:
+      - term
+      - commencement
+      - expiration
+      - commencement date
+      - expiration date
+      - initial term
+      - lease term
+      - expiry
+    priority: 20
+
+  financial:
+    section_tags: [base_rent, rent, financial]
+    heading_signals:
+      - "(?i)\\b(base rent|fixed rent|minimum rent|rent schedule)\\b"
+      - "(?i)\\b(annual rent|monthly rent|escalation|security deposit)\\b"
+    keywords:
+      - base rent
+      - fixed rent
+      - minimum rent
+      - annual rent
+      - monthly rent
+      - rent schedule
+      - escalation
+      - security deposit
+    priority: 30
+
+  options_obligations:
+    section_tags: [renewal, options, termination]
+    heading_signals:
+      - "(?i)\\b(option to renew|renewal option|extend|extension term)\\b"
+      - "(?i)\\b(termination option|holdover|renewal notice)\\b"
+    keywords:
+      - option to renew
+      - renewal option
+      - extend
+      - extension term
+      - termination option
+      - holdover
+      - notice period
+      - renewal notice
+    priority: 40
+
+  opex:
+    section_tags: [opex, cam, operating_expenses]
+    heading_signals:
+      - "(?i)\\b(operating expenses|additional rent|cam|common area maintenance)\\b"
+      - "(?i)\\b(real estate taxes|property taxes|taxes|base year)\\b"
+    keywords:
+      - operating expenses
+      - CAM
+      - common area maintenance
+      - additional rent
+      - taxes
+      - real estate taxes
+      - property taxes
+      - base year
+      - cam cap
+    priority: 50
