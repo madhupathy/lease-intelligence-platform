@@ -11,10 +11,10 @@ scaffolded for compose, not the public Railway surface.
 **Live:** https://lease-intelligence-platform-production.up.railway.app  
 **Demo:** `admin` / `newmark`  
 **API docs:** [/docs](https://lease-intelligence-platform-production.up.railway.app/docs) (Swagger)
+<br>
+<img src="docs/screenshots/portfolio.png" width="700"><br>
+<img src="docs/screenshots/lease-detail.png" width="700">
 
-![Portfolio / lease list](docs/screenshots/portfolio.png)
-
-![Extracted fields with confidence](docs/screenshots/lease-detail.png)
 
 ---
 
@@ -75,6 +75,11 @@ extraction service publicly; gateway / web / risk-engine are not on that URL.*
 - **Untrusted PDF text:** document body is data, never instructions;
   `InjectionScan` flags injection heuristics; prompts put lease text inside
   `<document>` delimiters.
+- **Data ingestion:** PDF upload works today via `POST /api/leases` (and Swagger).
+  A `DocumentSource` abstraction is the intended seam so a Kafka consumer or
+  S3/SharePoint loader is another implementation; the `events` table +
+  `EventPublisher` interface are the integration point for database/event
+  connectors (future).
 
 ---
 
@@ -134,6 +139,29 @@ which is what makes the `needs_review` queue meaningful.
 5. Kafka for portfolio-scale ingest
 6. OIDC auth
 7. Drift monitoring on extraction confidence over time
+
+### Observability (priority — my domain)
+
+Today: structured logs (guardrail penalties, per-group success/empty, tokens per
+run). Next: OpenTelemetry spans across the agent pipeline (one span per stage:
+loader → sectioner → router → budget → extractor → guardrails → persist);
+Prometheus/Grafana metrics (latency, tokens, confidence distribution,
+`needs_review` rate, group-empty rate); per-run trace links. Nested-schema empty
+output becomes a first-class signal, not something inferred from logs.
+
+### Cost tracking
+
+Tokens in/out are already persisted on each `extraction_run`. Next: a per-model
+$/token cost model rolled up to cost-per-lease and cost-per-portfolio, with budget
+alerts — extending the idempotency cache that already avoids re-extraction spend.
+
+### Evaluation depth
+
+Today: Level 1 (gold field accuracy + confidence calibration) on a hand-labeled
+lease. Next: gold across all five seed leases; Level 2 (recall@k, MRR) and Level 3
+(LLM-judge faithfulness) once embeddings are funded; CI regression gates on
+prompt-version bumps; extraction determinism tests (same input × N, measure
+variance) to quantify nested-schema non-determinism.
 
 ---
 

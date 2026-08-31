@@ -16,6 +16,8 @@ COPY services/extraction/prompts/ ./prompts/
 COPY services/extraction/field_matrix.yaml ./
 # Seed PDFs must be in the image for first-boot portfolio seeding on Railway.
 COPY seed/ ./seed/
+# Standalone interview dashboard (served at GET /app).
+COPY web/standalone/ ./static/
 COPY services/extraction/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh \
     && chown -R app:app /app /docker-entrypoint.sh
