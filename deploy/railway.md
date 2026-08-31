@@ -133,6 +133,28 @@ Notes:
 
 ---
 
+## Anthropic identity-linked API keys
+
+If your `ANTHROPIC_API_KEY` is **identity-linked** (Anthropic console shows key type
+**Personal**), every Claude request must include the workspace id header
+`anthropic-workspace-id`. Without it, Anthropic returns HTTP 400.
+
+**Where to find the workspace id:** In the [Anthropic Console](https://console.anthropic.com),
+open **Settings → Workspace** (or the workspace switcher in the top bar). The workspace
+id is shown in the workspace settings URL or details panel — copy the id string
+(e.g. `ws_…` or similar) into Railway.
+
+**Railway:** On the **extraction** service, set:
+
+```text
+ANTHROPIC_WORKSPACE_ID=<your-workspace-id>
+```
+
+The extraction service sends this on every `ChatAnthropic` call via
+`default_headers`. Non-identity-linked keys can leave this unset.
+
+---
+
 ## Environment variables (names only)
 
 ### extraction
@@ -143,7 +165,8 @@ Notes:
 | `PORT` | set by Railway | uvicorn bind |
 | `STORAGE_DIR` | yes | e.g. `/app/storage` (ephemeral on Railway) |
 | `ANTHROPIC_API_KEY` | yes for real extract/seed | Claude extraction + Q&A |
-| `OPENAI_API_KEY` | yes for embeddings/seed | `text-embedding-3-small` |
+| `ANTHROPIC_WORKSPACE_ID` | yes for identity-linked keys | Personal / identity-linked API keys require this header (see below) |
+| `OPENAI_API_KEY` | optional | `text-embedding-3-small` for Q&A embeddings only |
 | `JWT_SECRET` | yes | HS256 signing key |
 | `DEMO_USER` | yes | seeded login |
 | `DEMO_PASSWORD` | yes | seeded login |

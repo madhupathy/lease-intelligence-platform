@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # --- LLM / extraction (AGENTS.md §12) ---
     anthropic_api_key: str = ""
+    anthropic_workspace_id: str | None = None
     openai_api_key: str = ""
     extraction_model: str = "claude-sonnet-4-6"
     embedding_model: str = "text-embedding-3-small"

@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
+
+from app.agent.llm import build_chat_anthropic
 
 from app.agent.prompts import render_prompt_template
 from app.agent.schema import (
@@ -19,7 +20,6 @@ from app.agent.schema import (
     Term,
 )
 from app.agent.types import ExtractGroupResult
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,7 @@ PROMPT_VERSION = "v1.0"
 
 
 def _default_llm() -> BaseChatModel:
-    return ChatAnthropic(
-        model=settings.extraction_model,
-        temperature=0,
-        api_key=settings.anthropic_api_key or None,
-    )
+    return build_chat_anthropic()
 
 
 def _extract_usage_metadata(response: Any) -> tuple[int, int]:

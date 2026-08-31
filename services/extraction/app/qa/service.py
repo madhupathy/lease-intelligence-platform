@@ -9,11 +9,12 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy.orm import Session
+
+from app.agent.llm import build_chat_anthropic
 
 from app.agent.prompts import render_prompt_template
 from app.config import settings
@@ -129,11 +130,7 @@ def answer_lease_question(
 
     messages.append(HumanMessage(content=question))
 
-    chat_model = llm or ChatAnthropic(
-        model=settings.extraction_model,
-        temperature=0,
-        api_key=settings.anthropic_api_key or None,
-    )
+    chat_model = llm or build_chat_anthropic()
     response = chat_model.invoke(messages)
     raw_content = response.content if isinstance(response.content, str) else str(response.content)
     answer, citations, parsed_ok = _parse_llm_response(raw_content)

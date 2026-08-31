@@ -88,7 +88,7 @@ class TestQAService:
         )
         assert bad == []
 
-    @patch("app.qa.service.ChatAnthropic")
+    @patch("app.qa.service.build_chat_anthropic")
     def test_low_similarity_returns_not_found_without_llm(self, mock_chat, db_session) -> None:
         from app.db.models import Lease
 
@@ -106,7 +106,7 @@ class TestQAService:
         assert result.answer == NOT_FOUND_ANSWER
         mock_chat.assert_not_called()
 
-    @patch("app.qa.service.ChatAnthropic")
+    @patch("app.qa.service.build_chat_anthropic")
     def test_qa_with_mocked_llm(self, mock_chat, db_session) -> None:
         from app.db.models import Lease
 
@@ -140,7 +140,7 @@ class TestQAService:
         assert len(result.citations) == 1
         assert result.citations[0].page == 4
 
-    @patch("app.qa.service.ChatAnthropic")
+    @patch("app.qa.service.build_chat_anthropic")
     def test_unparseable_llm_response_flags_and_returns_raw(self, mock_chat, db_session) -> None:
         from app.db.models import Event, Lease
 
