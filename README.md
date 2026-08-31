@@ -2,13 +2,15 @@
 
 Staff take-home for a CRE firm: ingest commercial lease PDFs, extract structured
 terms with an LLM agent, and persist provenance-backed fields so critical dates
-can be reviewed and acted on. **What is live today is the extraction API**
+can be reviewed and acted on. **What is live today** is the extraction API
 (auth, upload, extract, leases, fields, obligations) on Railway against Neon
-Postgres. The React dashboard is a local scaffold only (not deployed). Q&A /
+Postgres, plus a **vanilla JS standalone dashboard** served same-origin at
+`/app`. The full React/Vite dashboard remains a local scaffold only. Q&A /
 embeddings are optional and currently disabled. The Spring risk-engine is
 scaffolded for compose, not the public Railway surface.
 
 **Live:** https://lease-intelligence-platform-production.up.railway.app  
+**Dashboard:** https://lease-intelligence-platform-production.up.railway.app/app  
 **Demo:** `admin` / `newmark`  
 **API docs:** [/docs](https://lease-intelligence-platform-production.up.railway.app/docs) (Swagger)
 <br>
@@ -61,7 +63,8 @@ not force provenance, confidence gating, and a rules path for legal deadlines.
 ```
 
 *Diagram = full local compose target (`AGENTS.md` §3). Railway today exposes the
-extraction service publicly; gateway / web / risk-engine are not on that URL.*
+extraction service (API + vanilla `/app` dashboard); gateway / React web /
+risk-engine are not on that URL.*
 
 **Extraction pipeline:**  
 `loader → sectioner → router → budget → extractor → guardrails → consolidator → persist`
