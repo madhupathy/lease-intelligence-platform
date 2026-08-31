@@ -42,3 +42,4 @@ class ExtractGroupResult:
     model: object
     tokens_in: int
     tokens_out: int
+    degraded: bool = False

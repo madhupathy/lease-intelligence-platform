@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 
-from app.agent.llm import build_chat_anthropic
+from app.agent.llm import EXTRACTION_TEMPERATURE, build_chat_anthropic
 from app.agent.prompts import render_prompt_template
 from app.agent.schema import (
     Financial,
@@ -43,6 +44,16 @@ PROMPT_TEMPLATES: dict[str, str] = {
 
 PROMPT_VERSION = "v1.0"
 
+# Nested-list groups are flaky under tool-calling structured output; prefer json_schema.
+STRUCTURED_OUTPUT_METHOD = "json_schema"
+MAX_STRUCTURED_ATTEMPTS = 3  # initial + 2 retries
+RETRY_BACKOFF_SECONDS = 0.75
+RETRY_INSTRUCTION = (
+    "Return a valid JSON object matching the schema. If a field is unknown, "
+    "set value to null with confidence 0 — but DO NOT return an empty object."
+)
+RAW_LOG_LIMIT = 500
+
 
 def _default_llm() -> BaseChatModel:
     return build_chat_anthropic()
@@ -56,6 +67,46 @@ def _extract_usage_metadata(response: Any) -> tuple[int, int]:
     response_metadata = getattr(response, "response_metadata", {}) or {}
     usage_meta = response_metadata.get("usage", {})
     return int(usage_meta.get("input_tokens", 0)), int(usage_meta.get("output_tokens", 0))
+
+
+def _raw_preview(raw: Any, limit: int = RAW_LOG_LIMIT) -> str:
+    if raw is None:
+        return "<none>"
+    content = getattr(raw, "content", raw)
+    text = str(content)
+    if len(text) > limit:
+        return text[:limit] + "…"
+    return text
+
+
+def _bind_structured(chat_model: BaseChatModel, model_cls: type[BaseModel]) -> Any:
+    """Prefer Anthropic native json_schema; fall back to default tool-calling."""
+    try:
+        structured = chat_model.with_structured_output(
+            model_cls,
+            include_raw=True,
+            method=STRUCTURED_OUTPUT_METHOD,
+        )
+        logger.info(
+            "structured_output method=%s temperature=%s schema=%s",
+            STRUCTURED_OUTPUT_METHOD,
+            EXTRACTION_TEMPERATURE,
+            model_cls.__name__,
+        )
+        return structured
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "with_structured_output(method=%s) unsupported (%s) — falling back to default",
+            STRUCTURED_OUTPUT_METHOD,
+            exc,
+        )
+        structured = chat_model.with_structured_output(model_cls, include_raw=True)
+        logger.info(
+            "structured_output method=default temperature=%s schema=%s",
+            EXTRACTION_TEMPERATURE,
+            model_cls.__name__,
+        )
+        return structured
 
 
 def _coerce_group_model(model_cls: type[BaseModel], parsed: Any) -> BaseModel:
@@ -72,9 +123,9 @@ def extract_group(
     context: str,
     llm: BaseChatModel | None = None,
 ) -> ExtractGroupResult:
-    """One LLM call per field group, temperature 0, retry once on schema-invalid.
+    """One LLM call per field group at temperature 0, with retries on empty/invalid output.
 
-    After retry, degrade to an empty (null-leaf) group instead of crashing the pipeline.
+    After retries, degrade to an empty (null-leaf) group instead of crashing the pipeline.
     """
     if group_name not in GROUP_MODELS:
         raise ValueError(f"Unknown extraction group: {group_name}")
@@ -84,51 +135,81 @@ def extract_group(
     prompt_text = render_prompt_template(template_name, context)
 
     chat_model = llm or _default_llm()
-    structured = chat_model.with_structured_output(model_cls, include_raw=True)
+    temperature = getattr(chat_model, "temperature", EXTRACTION_TEMPERATURE)
+    logger.debug("extract_group=%s using temperature=%s", group_name, temperature)
 
-    messages = [HumanMessage(content=prompt_text)]
+    structured = _bind_structured(chat_model, model_cls)
+    messages: list[Any] = [HumanMessage(content=prompt_text)]
     tokens_in = 0
     tokens_out = 0
+    last_error: Exception | None = None
 
-    try:
-        response = structured.invoke(messages)
-        parsed = response["parsed"]
-        raw = response.get("raw")
-        if raw is not None:
-            tokens_in, tokens_out = _extract_usage_metadata(raw)
-        validated = _coerce_group_model(model_cls, parsed)
-    except (ValidationError, ValueError, TypeError) as first_error:
-        logger.warning("Schema validation failed for %s, retrying once: %s", group_name, first_error)
+    for attempt in range(1, MAX_STRUCTURED_ATTEMPTS + 1):
         try:
-            retry_messages = messages + [
-                HumanMessage(content=f"Validation error — fix output to match schema: {first_error}")
-            ]
-            response = structured.invoke(retry_messages)
-            parsed = response["parsed"]
-            raw = response.get("raw")
-            if raw is not None:
-                retry_in, retry_out = _extract_usage_metadata(raw)
-                tokens_in += retry_in
-                tokens_out += retry_out
-            if parsed is None:
-                logger.warning(
-                    "Structured output empty for %s after retry — degrading to null leaves",
-                    group_name,
-                )
-                validated = empty_group(model_cls)
-            else:
-                validated = _coerce_group_model(model_cls, parsed)
-        except (ValidationError, ValueError, TypeError) as retry_error:
-            logger.warning(
-                "Schema validation failed for %s after retry — degrading to null leaves: %s",
-                group_name,
-                retry_error,
-            )
-            validated = empty_group(model_cls)
+            response = structured.invoke(messages)
+            if not isinstance(response, dict):
+                raise ValueError(f"Unexpected structured response type: {type(response)}")
 
+            parsed = response.get("parsed")
+            raw = response.get("raw")
+            parsing_error = response.get("parsing_error")
+            if raw is not None:
+                attempt_in, attempt_out = _extract_usage_metadata(raw)
+                tokens_in += attempt_in
+                tokens_out += attempt_out
+
+            if parsed is None:
+                preview = _raw_preview(raw)
+                logger.warning(
+                    "Structured output empty for %s attempt=%s/%s parsing_error=%s raw=%s",
+                    group_name,
+                    attempt,
+                    MAX_STRUCTURED_ATTEMPTS,
+                    parsing_error,
+                    preview,
+                )
+                raise ValueError("Structured output was empty")
+
+            validated = _coerce_group_model(model_cls, parsed)
+            return ExtractGroupResult(
+                group_name=group_name,
+                model=validated,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                degraded=False,
+            )
+        except (ValidationError, ValueError, TypeError) as error:
+            last_error = error
+            logger.warning(
+                "Schema validation failed for %s attempt=%s/%s: %s",
+                group_name,
+                attempt,
+                MAX_STRUCTURED_ATTEMPTS,
+                error,
+            )
+            if attempt >= MAX_STRUCTURED_ATTEMPTS:
+                break
+            messages = messages + [
+                HumanMessage(
+                    content=(
+                        f"Validation error — fix output to match schema: {error}\n"
+                        f"{RETRY_INSTRUCTION}"
+                    )
+                )
+            ]
+            time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+
+    logger.warning(
+        "Structured output empty/invalid for %s after %s attempts — degrading to null leaves "
+        "(last_error=%s)",
+        group_name,
+        MAX_STRUCTURED_ATTEMPTS,
+        last_error,
+    )
     return ExtractGroupResult(
         group_name=group_name,
-        model=validated,
+        model=empty_group(model_cls),
         tokens_in=tokens_in,
         tokens_out=tokens_out,
+        degraded=True,
     )

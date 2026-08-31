@@ -114,9 +114,16 @@ def seed_portfolio() -> None:
                     lease_id=None,
                     page_count=len(pages),
                 )
-                run_extraction(document.id, session)
+                result = run_extraction(document.id, session)
                 session.commit()
-                logger.info("Seeded lease from %s (document_id=%s)", pdf_path.name, document.id)
+                logger.info(
+                    "Seeded lease from %s (document_id=%s) lease=%s groups_full=%s groups_empty=%s",
+                    pdf_path.name,
+                    document.id,
+                    document.lease_id,
+                    result.groups_full,
+                    result.groups_empty,
+                )
         except Exception:
             logger.exception(
                 "Failed to seed lease from %s — skipping and continuing",

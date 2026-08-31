@@ -34,3 +34,11 @@ class TestBuildChatAnthropic:
             temperature=0,
             api_key="sk-test",
         )
+
+    @patch("langchain_anthropic.ChatAnthropic")
+    def test_temperature_is_explicitly_zero(self, mock_chat_cls) -> None:
+        with patch("app.config.settings.anthropic_api_key", "sk-test"):
+            with patch("app.config.settings.extraction_model", "claude-sonnet-4-6"):
+                with patch("app.config.settings.anthropic_workspace_id", None):
+                    build_chat_anthropic()
+        assert mock_chat_cls.call_args.kwargs["temperature"] == 0

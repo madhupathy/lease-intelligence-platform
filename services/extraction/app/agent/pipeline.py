@@ -7,7 +7,7 @@ import json
 import logging
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -47,6 +47,8 @@ class PipelineResult:
     context_truncated: bool
     needs_review_count: int
     scanned_pages: list[int]
+    groups_full: list[str] = field(default_factory=list)
+    groups_empty: list[str] = field(default_factory=list)
 
 
 def validate_upload_bytes(content: bytes, filename: str) -> tuple[list[PageText], GuardContext]:
@@ -180,6 +182,7 @@ def run_extraction(
     page_texts = {page.page: page.text for page in pages}
 
     group_models: dict[str, object] = {}
+    group_degraded: dict[str, bool] = {}
     tokens_in = 0
     tokens_out = 0
     context_truncated = False
@@ -193,6 +196,7 @@ def run_extraction(
         extract_result = extract_group(group_name, budget.context, llm=llm)
         tokens_in += extract_result.tokens_in
         tokens_out += extract_result.tokens_out
+        group_degraded[group_name] = extract_result.degraded
 
         output_ctx = GuardContext(
             group_name=group_name,
@@ -208,14 +212,28 @@ def run_extraction(
 
         group_models[group_name] = extract_result.model
 
+    groups_full: list[str] = []
+    groups_empty: list[str] = []
     for group_name, group_model in group_models.items():
         total_leaves, non_null_leaves = count_group_leaves(group_model)  # type: ignore[arg-type]
         logger.info(
-            "extraction group=%s leaves=%s non_null=%s",
+            "extraction group=%s leaves=%s non_null=%s degraded=%s",
             group_name,
             total_leaves,
             non_null_leaves,
+            group_degraded.get(group_name, False),
         )
+        if group_degraded.get(group_name) or non_null_leaves == 0:
+            groups_empty.append(group_name)
+        else:
+            groups_full.append(group_name)
+
+    logger.info(
+        "lease=%s groups_full=%s groups_empty=%s",
+        document.lease_id,
+        groups_full,
+        groups_empty,
+    )
 
     extraction = lease_extraction_from_groups(
         parties_premises=group_models["parties_premises"],  # type: ignore[arg-type]
@@ -258,6 +276,8 @@ def run_extraction(
         context_truncated=context_truncated,
         needs_review_count=int(needs_review_count),
         scanned_pages=scanned_pages,
+        groups_full=groups_full,
+        groups_empty=groups_empty,
     )
 
 
@@ -272,6 +292,8 @@ def _result_to_json(result: PipelineResult) -> dict:
         "context_truncated": result.context_truncated,
         "needs_review_count": result.needs_review_count,
         "scanned_pages": result.scanned_pages,
+        "groups_full": result.groups_full,
+        "groups_empty": result.groups_empty,
     }
     return payload
 
