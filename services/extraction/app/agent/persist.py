@@ -88,13 +88,31 @@ def _write_extracted_fields(
     lease_id: uuid.UUID,
     extraction: LeaseExtraction,
     needs_review_fields: set[str],
-) -> None:
+) -> int:
     flat = flatten_lease_extraction(extraction)
+    written = 0
     for field_key, raw in flat.items():
-        confidence = _confidence_for_value(raw) if isinstance(raw, dict) else 0.0
-        page = _page_for_value(raw) if isinstance(raw, dict) else None
-        snippet = _snippet_for_value(raw) if isinstance(raw, dict) else None
-        needs_review = field_key in needs_review_fields or confidence < settings.review_threshold
+        if isinstance(raw, dict):
+            confidence = _confidence_for_value(raw)
+            page = _page_for_value(raw)
+            snippet = _snippet_for_value(raw)
+            empty_value = raw.get("value") is None
+        elif isinstance(raw, list):
+            confidence = 0.0 if len(raw) == 0 else 1.0
+            page = None
+            snippet = None
+            empty_value = len(raw) == 0
+        else:
+            confidence = 0.0
+            page = None
+            snippet = None
+            empty_value = True
+
+        needs_review = (
+            field_key in needs_review_fields
+            or confidence < settings.review_threshold
+            or empty_value
+        )
 
         session.add(
             ExtractedField(
@@ -109,6 +127,16 @@ def _write_extracted_fields(
                 effective=False,
             )
         )
+        written += 1
+
+    logger.info(
+        "persist extracted_fields: lease_id=%s run_id=%s rows=%s keys=%s",
+        lease_id,
+        run.id,
+        written,
+        sorted(flat.keys()),
+    )
+    return written
 
 
 def derive_obligations_for_lease(
@@ -240,8 +268,16 @@ def persist_extraction(
     session.add(run)
     session.flush()
 
-    _write_extracted_fields(session, run, lease_id, extraction, needs_review_fields)
-    consolidate(lease_id, session)
+    written = _write_extracted_fields(session, run, lease_id, extraction, needs_review_fields)
+    session.flush()
+    effective_count = consolidate(lease_id, session)
+    logger.info(
+        "persist consolidation: lease_id=%s run_id=%s written=%s effective=%s",
+        lease_id,
+        run.id,
+        written,
+        effective_count,
+    )
 
     obligations = derive_obligations_for_lease(session, lease_id)
 

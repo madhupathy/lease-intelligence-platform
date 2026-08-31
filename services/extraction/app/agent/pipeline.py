@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agent.budget import enforce_budget
@@ -23,14 +23,14 @@ from app.agent.matrix import load_field_matrix
 from app.agent.persist import load_cached_run, persist_extraction
 from app.agent.router import route
 from app.agent.sectioner import tag_sections
-from app.agent.serialization import lease_extraction_from_groups
+from app.agent.serialization import count_group_leaves, lease_extraction_from_groups
+from app.agent.types import PageText
 from app.config import get_input_guardrails, get_output_guardrails, settings
-from app.db.models import Document, Lease
+from app.db.models import Document, ExtractedField, Lease
 from app.db.session import SessionLocal
 from app.events import PostgresEventPublisher
 from app.guardrails.context import GuardContext
 from app.guardrails.runner import run_guardrails
-from app.agent.types import PageText
 from app.storage import resolve_document_path, save_pdf_bytes
 
 logger = logging.getLogger(__name__)
@@ -208,6 +208,15 @@ def run_extraction(
 
         group_models[group_name] = extract_result.model
 
+    for group_name, group_model in group_models.items():
+        total_leaves, non_null_leaves = count_group_leaves(group_model)  # type: ignore[arg-type]
+        logger.info(
+            "extraction group=%s leaves=%s non_null=%s",
+            group_name,
+            total_leaves,
+            non_null_leaves,
+        )
+
     extraction = lease_extraction_from_groups(
         parties_premises=group_models["parties_premises"],  # type: ignore[arg-type]
         term=group_models["term"],  # type: ignore[arg-type]
@@ -230,7 +239,14 @@ def run_extraction(
         publisher=PostgresEventPublisher(session),
     )
 
-    needs_review_count = sum(1 for field in run.extracted_fields if field.needs_review)
+    needs_review_count = session.scalar(
+        select(func.count())
+        .select_from(ExtractedField)
+        .where(
+            ExtractedField.run_id == run.id,
+            ExtractedField.needs_review.is_(True),
+        )
+    ) or 0
 
     return PipelineResult(
         extraction=extraction,
@@ -240,7 +256,7 @@ def run_extraction(
         cache_hit=False,
         flagged=flagged,
         context_truncated=context_truncated,
-        needs_review_count=needs_review_count,
+        needs_review_count=int(needs_review_count),
         scanned_pages=scanned_pages,
     )
 

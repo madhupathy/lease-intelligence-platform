@@ -139,16 +139,31 @@ def _effective_value(fields: list[ExtractedField], key: str) -> Any | None:
 
 
 def _field_response(field: ExtractedField) -> FieldValueResponse:
-    value_json = field.value_json if isinstance(field.value_json, dict) else {}
+    if isinstance(field.value_json, dict):
+        value = field.value_json.get("value")
+    else:
+        value = field.value_json
     return FieldValueResponse(
         id=str(field.id),
         field_key=field.field_key,
-        value=value_json.get("value") if isinstance(value_json, dict) else field.value_json,
+        value=value,
         confidence=float(field.confidence) if field.confidence is not None else None,
         page=field.page,
         snippet=field.source_snippet,
         needs_review=field.needs_review,
         effective=field.effective,
+    )
+
+
+def load_effective_fields(db: Session, lease_id: uuid.UUID) -> list[ExtractedField]:
+    """Same query used by GET /api/leases/{id} for grouped fields."""
+    return list(
+        db.scalars(
+            select(ExtractedField).where(
+                ExtractedField.lease_id == lease_id,
+                ExtractedField.effective.is_(True),
+            )
+        ).all()
     )
 
 
@@ -229,16 +244,15 @@ def list_leases(
     summaries: list[LeaseSummaryResponse] = []
 
     for lease in leases:
-        effective_fields = db.scalars(
-            select(ExtractedField).where(
-                ExtractedField.lease_id == lease.id,
-                ExtractedField.effective.is_(True),
-            )
-        ).all()
+        effective_fields = load_effective_fields(db, lease.id)
         needs_review_count = db.scalar(
             select(func.count())
             .select_from(ExtractedField)
-            .where(ExtractedField.lease_id == lease.id, ExtractedField.needs_review.is_(True))
+            .where(
+                ExtractedField.lease_id == lease.id,
+                ExtractedField.effective.is_(True),
+                ExtractedField.needs_review.is_(True),
+            )
         ) or 0
         open_obligations = db.scalar(
             select(func.count())
@@ -274,12 +288,7 @@ def get_lease(
     if lease is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lease not found")
 
-    effective_fields = db.scalars(
-        select(ExtractedField).where(
-            ExtractedField.lease_id == lease.id,
-            ExtractedField.effective.is_(True),
-        )
-    ).all()
+    effective_fields = load_effective_fields(db, lease.id)
     documents = db.scalars(
         select(Document).where(Document.lease_id == lease.id).order_by(Document.uploaded_at.asc())
     ).all()

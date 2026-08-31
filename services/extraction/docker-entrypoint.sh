@@ -11,6 +11,10 @@ alembic upgrade head
 echo "Seeding demo user (idempotent)..."
 python -c "from app.db.seed import seed_demo_user; seed_demo_user()"
 
+echo "Reconciling effective field flags..."
+python -c "from app.db.seed import reconcile_effective_flags; reconcile_effective_flags()" \
+  || echo "Effective-flag reconcile failed (uvicorn continues)"
+
 # Portfolio extraction can take minutes / fail on one PDF — never block the API.
 echo "Starting portfolio seed in background (failures will not stop uvicorn)..."
 (

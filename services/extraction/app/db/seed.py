@@ -45,6 +45,18 @@ def seed_demo_user() -> None:
         session.commit()
 
 
+def reconcile_effective_flags() -> None:
+    """Re-run consolidation for all leases (heals rows stuck with effective=false)."""
+    from app.agent.consolidator import consolidate
+
+    with SessionLocal() as session:
+        lease_ids = session.scalars(select(Lease.id)).all()
+        for lease_id in lease_ids:
+            count = consolidate(lease_id, session)
+            logger.info("reconcile effective flags: lease_id=%s effective=%s", lease_id, count)
+        session.commit()
+
+
 def seed_portfolio() -> None:
     """Extract portfolio PDFs from seed/pdfs/ when leases table is empty."""
     if not settings.anthropic_api_key:

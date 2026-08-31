@@ -11,7 +11,13 @@ from app.db.models import Document, ExtractedField, ExtractionRun
 
 
 def consolidate(lease_id: uuid.UUID, session: Session) -> int:
-    """Latest-document-wins per field_key; rewrite effective flags; never delete rows."""
+    """Latest-document-wins per field_key; rewrite effective flags; never delete rows.
+
+    Fields are loaded by run_id query (not the relationship collection) so newly
+    added ExtractedField rows are visible even before the relationship is refreshed.
+    """
+    session.flush()
+
     documents = session.scalars(
         select(Document)
         .where(Document.lease_id == lease_id)
@@ -32,7 +38,10 @@ def consolidate(lease_id: uuid.UUID, session: Session) -> int:
         if run is None:
             continue
 
-        for field in run.extracted_fields:
+        run_fields = session.scalars(
+            select(ExtractedField).where(ExtractedField.run_id == run.id)
+        ).all()
+        for field in run_fields:
             winners[field.field_key] = field
 
     all_fields = session.scalars(
