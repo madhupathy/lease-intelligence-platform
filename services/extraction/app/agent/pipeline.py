@@ -14,8 +14,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent.budget import enforce_budget
 from app.agent.chunker import chunk_sectioned_pages
-from app.agent.chunk_store import persist_chunks
+from app.agent.chunk_store import persist_chunks_safe
 from app.agent.extractor import GROUP_MODELS, extract_group
 from app.agent.loader import load_pages
 from app.agent.matrix import load_field_matrix
@@ -175,7 +176,7 @@ def run_extraction(
     flagged = bool(input_ctx.flags) or bool(scanned_pages)
     sectioned = tag_sections(pages, load_field_matrix())
     chunk_drafts = chunk_sectioned_pages(sectioned)
-    persist_chunks(session, document.lease_id, document.id, chunk_drafts)
+    persist_chunks_safe(session, document.lease_id, document.id, chunk_drafts)
     page_texts = {page.page: page.text for page in pages}
 
     group_models: dict[str, object] = {}

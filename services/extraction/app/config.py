@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     max_context_tokens: int = 12000
 
     # --- Q&A / retrieval ---
+    enable_qa: bool = True
     qa_top_k: int = 5
     qa_min_similarity: float = 0.25
     chunk_target_tokens: int = 800

@@ -363,6 +363,9 @@ def ask_lease_question(
     if lease is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lease not found")
 
+    if not settings.enable_qa:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Q&A disabled")
+
     history = None
     if payload.history:
         history = [turn.model_dump() for turn in payload.history[-6:]]

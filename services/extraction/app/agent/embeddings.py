@@ -8,6 +8,7 @@ OPENAI_API_KEY. No vector padding.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from langchain_core.embeddings import Embeddings
 
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 EMBEDDING_PROVIDER = "openai"
 EMBEDDING_DIMENSION = 1536
 EMBEDDING_MODEL_DEFAULT = "text-embedding-3-small"
+EMBEDDING_SKIP_WARNING = (
+    "Embeddings unavailable — Q&A disabled for this lease; extraction unaffected"
+)
 
 
 def _try_anthropic_embeddings() -> Embeddings | None:
@@ -35,6 +39,13 @@ def _try_anthropic_embeddings() -> Embeddings | None:
         model=settings.embedding_model,
         api_key=settings.anthropic_api_key,
     )
+
+
+def embeddings_configured() -> bool:
+    """Return True when an embedding provider can be constructed."""
+    if _try_anthropic_embeddings() is not None:
+        return True
+    return bool(settings.openai_api_key)
 
 
 def get_embedding_model() -> Embeddings:
@@ -56,6 +67,43 @@ def get_embedding_model() -> Embeddings:
         model=settings.embedding_model,
         api_key=settings.openai_api_key,
     )
+
+
+def is_embedding_api_error(exc: BaseException) -> bool:
+    """Detect auth/quota failures from OpenAI or wrapped LangChain errors."""
+    visited: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+
+        status_code = getattr(current, "status_code", None)
+        if status_code in (401, 403, 429):
+            return True
+
+        message = str(current).lower()
+        if any(
+            token in message
+            for token in (
+                "insufficient_quota",
+                "invalid_api_key",
+                "incorrect api key",
+                "authentication",
+                "unauthorized",
+            )
+        ):
+            return True
+
+        body: Any = getattr(current, "body", None)
+        if isinstance(body, dict):
+            error = body.get("error", {})
+            if isinstance(error, dict) and error.get("code") in (
+                "insufficient_quota",
+                "invalid_api_key",
+            ):
+                return True
+
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def embed_texts(texts: list[str], embeddings: Embeddings | None = None) -> list[list[float]]:

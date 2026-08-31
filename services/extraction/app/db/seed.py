@@ -47,10 +47,8 @@ def seed_demo_user() -> None:
 
 def seed_portfolio() -> None:
     """Extract portfolio PDFs from seed/pdfs/ when leases table is empty."""
-    if not settings.anthropic_api_key or not settings.openai_api_key:
-        logger.warning(
-            "ANTHROPIC_API_KEY and/or OPENAI_API_KEY unset — skipping PDF seed extraction"
-        )
+    if not settings.anthropic_api_key:
+        logger.warning("ANTHROPIC_API_KEY unset — skipping PDF seed extraction")
         return
 
     with SessionLocal() as session:

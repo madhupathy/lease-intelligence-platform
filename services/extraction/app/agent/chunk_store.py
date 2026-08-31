@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
+from langchain_core.embeddings import Embeddings
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent.chunker import ChunkDraft
-from app.agent.embeddings import embed_texts
+from app.agent.embeddings import (
+    EMBEDDING_SKIP_WARNING,
+    embed_texts,
+    embeddings_configured,
+    is_embedding_api_error,
+)
 from app.config import settings
 from app.db.models import LeaseChunk
-from langchain_core.embeddings import Embeddings
+
+logger = logging.getLogger(__name__)
 
 
 def persist_chunks(
@@ -58,3 +66,27 @@ def persist_chunks(
 
     session.flush()
     return len(pending)
+
+
+def persist_chunks_safe(
+    session: Session,
+    lease_id: uuid.UUID,
+    document_id: uuid.UUID,
+    drafts: list[ChunkDraft],
+    embeddings: Embeddings | None = None,
+) -> int:
+    """Persist chunks when Q&A embeddings are available; skip without failing extraction."""
+    if not settings.enable_qa:
+        return 0
+
+    if not embeddings_configured():
+        logger.warning("%s (no embedding API key configured)", EMBEDDING_SKIP_WARNING)
+        return 0
+
+    try:
+        return persist_chunks(session, lease_id, document_id, drafts, embeddings=embeddings)
+    except Exception as exc:
+        if is_embedding_api_error(exc):
+            logger.warning("%s (%s)", EMBEDDING_SKIP_WARNING, exc)
+            return 0
+        raise
