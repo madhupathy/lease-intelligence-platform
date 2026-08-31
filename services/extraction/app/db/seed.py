@@ -5,18 +5,12 @@ Run via: python -m app.db.seed
 
 from __future__ import annotations
 
-from passlib.context import CryptContext
 from sqlalchemy import select
 
+from app.auth_utils import hash_password
 from app.config import settings
 from app.db.models import User
 from app.db.session import SessionLocal
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
 
 
 def seed_demo_user() -> None:
