@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     extraction_model: str = "claude-sonnet-4-6"
     embedding_model: str = "text-embedding-3-small"
     max_context_tokens: int = 12000
+    llm_request_timeout_seconds: float = 60.0
 
     # --- Q&A / retrieval ---
     enable_qa: bool = True

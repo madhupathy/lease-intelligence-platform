@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from app.agent.llm import EXTRACTION_TEMPERATURE, build_chat_anthropic
 from app.agent.prompts import render_prompt_template
@@ -44,8 +44,6 @@ PROMPT_TEMPLATES: dict[str, str] = {
 
 PROMPT_VERSION = "v1.0"
 
-# Nested-list groups are flaky under tool-calling structured output; prefer json_schema.
-STRUCTURED_OUTPUT_METHOD = "json_schema"
 MAX_STRUCTURED_ATTEMPTS = 3  # initial + 2 retries
 RETRY_BACKOFF_SECONDS = 0.75
 RETRY_INSTRUCTION = (
@@ -80,33 +78,14 @@ def _raw_preview(raw: Any, limit: int = RAW_LOG_LIMIT) -> str:
 
 
 def _bind_structured(chat_model: BaseChatModel, model_cls: type[BaseModel]) -> Any:
-    """Prefer Anthropic native json_schema; fall back to default tool-calling."""
-    try:
-        structured = chat_model.with_structured_output(
-            model_cls,
-            include_raw=True,
-            method=STRUCTURED_OUTPUT_METHOD,
-        )
-        logger.info(
-            "structured_output method=%s temperature=%s schema=%s",
-            STRUCTURED_OUTPUT_METHOD,
-            EXTRACTION_TEMPERATURE,
-            model_cls.__name__,
-        )
-        return structured
-    except (TypeError, ValueError) as exc:
-        logger.warning(
-            "with_structured_output(method=%s) unsupported (%s) — falling back to default",
-            STRUCTURED_OUTPUT_METHOD,
-            exc,
-        )
-        structured = chat_model.with_structured_output(model_cls, include_raw=True)
-        logger.info(
-            "structured_output method=default temperature=%s schema=%s",
-            EXTRACTION_TEMPERATURE,
-            model_cls.__name__,
-        )
-        return structured
+    """Default tool-calling structured output (reliable for this Anthropic + LangChain stack)."""
+    structured = chat_model.with_structured_output(model_cls, include_raw=True)
+    logger.info(
+        "structured_output method=default(tool_calling) temperature=%s schema=%s",
+        EXTRACTION_TEMPERATURE,
+        model_cls.__name__,
+    )
+    return structured
 
 
 def _coerce_group_model(model_cls: type[BaseModel], parsed: Any) -> BaseModel:
@@ -126,6 +105,7 @@ def extract_group(
     """One LLM call per field group at temperature 0, with retries on empty/invalid output.
 
     After retries, degrade to an empty (null-leaf) group instead of crashing the pipeline.
+    LLM calls are bounded by ChatAnthropic default_request_timeout so hangs cannot stall seed.
     """
     if group_name not in GROUP_MODELS:
         raise ValueError(f"Unknown extraction group: {group_name}")
@@ -178,7 +158,9 @@ def extract_group(
                 tokens_out=tokens_out,
                 degraded=False,
             )
-        except (ValidationError, ValueError, TypeError) as error:
+        except Exception as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
             last_error = error
             logger.warning(
                 "Schema validation failed for %s attempt=%s/%s: %s",

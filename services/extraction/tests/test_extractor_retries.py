@@ -31,7 +31,7 @@ class TestExtractGroupRetries:
         assert any(RETRY_INSTRUCTION in getattr(m, "content", "") for m in second_call_messages)
 
     @patch("app.agent.extractor.time.sleep")
-    def test_uses_json_schema_method(self, mock_sleep) -> None:
+    def test_uses_default_structured_output_not_json_schema(self, mock_sleep) -> None:
         llm = MagicMock()
         structured = MagicMock()
         llm.with_structured_output.return_value = structured
@@ -48,5 +48,19 @@ class TestExtractGroupRetries:
         assert result.degraded is False
         llm.with_structured_output.assert_called()
         kwargs = llm.with_structured_output.call_args.kwargs
-        assert kwargs.get("method") == "json_schema"
+        assert kwargs.get("method") is None
         assert kwargs.get("include_raw") is True
+
+    @patch("app.agent.extractor.time.sleep")
+    def test_timeout_degrades_after_retries(self, mock_sleep) -> None:
+        llm = MagicMock()
+        structured = MagicMock()
+        llm.with_structured_output.return_value = structured
+        llm.temperature = 0
+        structured.invoke.side_effect = TimeoutError("request timed out")
+
+        with patch("app.agent.extractor.render_prompt_template", return_value="prompt"):
+            result = extract_group("financial", "context", llm=llm)
+
+        assert result.degraded is True
+        assert structured.invoke.call_count == 3
