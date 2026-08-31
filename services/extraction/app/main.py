@@ -7,6 +7,7 @@ app/db — this module only assembles the app (AGENTS.md §4).
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, events, fields, health, leases
 from app.config import settings
@@ -17,6 +18,14 @@ app = FastAPI(title="Lease Intelligence — Extraction", version=settings.versio
 
 register_exception_handlers(app)
 app.add_middleware(RequestLoggingMiddleware)
+# Demo: allow any origin; production should restrict allow_origins to the dashboard's real origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health.router)
 app.include_router(auth.router)

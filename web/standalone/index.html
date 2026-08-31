@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lease Intelligence — Portfolio</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --surface: #ffffff;
+      --border: #e2e5eb;
+      --text: #1a1d26;
+      --muted: #5c6578;
+      --accent: #1e3a5f;
+      --accent-soft: #e8eef5;
+      --green: #0d7a4f;
+      --green-bg: #e6f5ee;
+      --amber: #9a6b00;
+      --amber-bg: #fff6e0;
+      --red: #b42318;
+      --red-bg: #fdecea;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+      --radius: 10px;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+
+    header.app-header {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      box-shadow: var(--shadow);
+    }
+    header.app-header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    header.app-header .meta {
+      font-size: 0.8rem;
+      opacity: 0.85;
+    }
+    header .actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    button, .btn {
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0.45rem 0.9rem;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 500;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.secondary {
+      background: transparent;
+      border-color: rgba(255,255,255,0.35);
+      color: #fff;
+    }
+    button.ghost {
+      background: var(--surface);
+      color: var(--accent);
+      border-color: var(--border);
+    }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.4rem;
+    }
+
+    .login-wrap {
+      max-width: 380px;
+      margin: 4rem auto;
+    }
+    .login-wrap h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.25rem;
+    }
+    .login-wrap p.hint {
+      margin: 0 0 1.25rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      font: inherit;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.9rem;
+      background: #fff;
+    }
+    .field-row { margin-bottom: 0.2rem; }
+
+    .banner {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      border: 1px solid transparent;
+    }
+    .banner.error { background: var(--red-bg); color: var(--red); border-color: #f3c4c0; }
+    .banner.info { background: var(--accent-soft); color: var(--accent); border-color: #c5d4e8; }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--muted);
+      padding: 1.5rem 0;
+      font-size: 0.95rem;
+    }
+    .spinner {
+      width: 1rem; height: 1rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    table.portfolio {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    table.portfolio th {
+      text-align: left;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    table.portfolio td {
+      padding: 0.7rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.portfolio tbody tr {
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    table.portfolio tbody tr:hover { background: var(--accent-soft); }
+    table.portfolio .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .ellipsis {
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .detail-header h2 { margin: 0; font-size: 1.35rem; }
+    .status-pill {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .group {
+      margin-bottom: 1.1rem;
+    }
+    .group h3 {
+      margin: 0 0 0.55rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .field {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.5rem;
+      background: #fafbfc;
+    }
+    .field-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+      justify-content: space-between;
+    }
+    .field-key {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .field-value {
+      margin: 0.4rem 0 0;
+      font-size: 0.95rem;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .badges { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.18rem 0.45rem;
+      border-radius: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .badge.green { background: var(--green-bg); color: var(--green); }
+    .badge.amber { background: var(--amber-bg); color: var(--amber); }
+    .badge.red { background: var(--red-bg); color: var(--red); }
+    .badge.page {
+      background: #eef0f4;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .badge.review {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    details.snippet {
+      margin-top: 0.55rem;
+      font-size: 0.85rem;
+    }
+    details.snippet summary {
+      cursor: pointer;
+      color: var(--accent);
+      font-weight: 500;
+      user-select: none;
+    }
+    details.snippet .snippet-body {
+      margin-top: 0.45rem;
+      padding: 0.65rem 0.75rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .obligations { margin-top: 1.5rem; }
+    .obligations h3 {
+      margin: 0 0 0.55rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .ob-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.75rem;
+      align-items: start;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.45rem;
+      background: #fafbfc;
+      font-size: 0.9rem;
+    }
+    .ob-kind { font-weight: 600; }
+    .ob-desc { color: var(--muted); font-size: 0.85rem; margin-top: 0.2rem; }
+    .ob-meta { text-align: right; font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+
+    .hidden { display: none !important; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+    .section-title h2 { margin: 0; font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+  <!--
+    Cross-origin note: this file is meant to be opened as file:// or hosted on a
+    different origin than the API. If browser fetches fail with a CORS error, the
+    API needs CORSMiddleware (e.g. allow_origins=["*"] for demo) or this page
+    must be served same-origin (e.g. behind the gateway / static host).
+  -->
+  <header class="app-header">
+    <div>
+      <h1>Lease Intelligence</h1>
+      <div class="meta" id="headerMeta">Sign in to view the portfolio</div>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary hidden" id="btnBack">← Portfolio</button>
+      <button type="button" class="secondary hidden" id="btnLogout">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="errorBanner" class="banner error hidden" role="alert"></div>
+
+    <!-- Login -->
+    <section id="viewLogin" class="login-wrap card">
+      <h2>Sign in</h2>
+      <p class="hint">Demo credentials are pre-filled. Token is kept in memory only.</p>
+      <form id="loginForm">
+        <div class="field-row">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" value="admin" required />
+        </div>
+        <div class="field-row">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" value="newmark" required />
+        </div>
+        <button type="submit" id="btnLogin" style="width:100%">Sign in</button>
+      </form>
+      <div id="loginLoading" class="loading hidden"><span class="spinner"></span> Signing in…</div>
+    </section>
+
+    <!-- Portfolio -->
+    <section id="viewPortfolio" class="hidden">
+      <div class="section-title">
+        <h2>Portfolio</h2>
+        <button type="button" class="ghost" id="btnRefresh">Refresh</button>
+      </div>
+      <div id="portfolioLoading" class="loading hidden"><span class="spinner"></span> Loading leases…</div>
+      <div id="portfolioCard" class="card hidden">
+        <table class="portfolio">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Tenant</th>
+              <th>Landlord</th>
+              <th>Expiration</th>
+              <th class="num">Needs review</th>
+              <th class="num">Obligations</th>
+            </tr>
+          </thead>
+          <tbody id="portfolioBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Detail -->
+    <section id="viewDetail" class="hidden">
+      <div id="detailLoading" class="loading hidden"><span class="spinner"></span> Loading lease…</div>
+      <div id="detailCard" class="hidden"></div>
+    </section>
+  </main>
+
+  <script>
+    // If cross-origin fetches are blocked by CORS, enable CORSMiddleware on the
+    // FastAPI app (or serve this file same-origin via the gateway).
+    const API_BASE = "https://lease-intelligence-platform-production.up.railway.app";
+
+    let accessToken = null;
+
+    const GROUP_LABELS = {
+      parties_premises: "Parties & premises",
+      term: "Term",
+      financial: "Financial",
+      options_obligations: "Options & obligations",
+      opex: "Operating expenses",
+    };
+    const GROUP_ORDER = [
+      "parties_premises",
+      "term",
+      "financial",
+      "options_obligations",
+      "opex",
+    ];
+
+    const el = (id) => document.getElementById(id);
+
+    function showError(msg) {
+      const banner = el("errorBanner");
+      if (!msg) {
+        banner.classList.add("hidden");
+        banner.textContent = "";
+        return;
+      }
+      banner.textContent = msg;
+      banner.classList.remove("hidden");
+    }
+
+    function setLoggedInUI(loggedIn) {
+      el("btnLogout").classList.toggle("hidden", !loggedIn);
+      el("viewLogin").classList.toggle("hidden", loggedIn);
+      if (!loggedIn) {
+        el("viewPortfolio").classList.add("hidden");
+        el("viewDetail").classList.add("hidden");
+        el("btnBack").classList.add("hidden");
+        el("headerMeta").textContent = "Sign in to view the portfolio";
+      }
+    }
+
+    async function api(path, options = {}) {
+      const headers = Object.assign(
+        { "Content-Type": "application/json", Accept: "application/json" },
+        options.headers || {}
+      );
+      if (accessToken) headers.Authorization = "Bearer " + accessToken;
+
+      let res;
+      try {
+        res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+      } catch (err) {
+        throw new Error(
+          "Network/CORS failure talking to " + API_BASE +
+          ". If this is a CORS block, enable CORSMiddleware on the API or serve this page same-origin. " +
+          String(err && err.message ? err.message : err)
+        );
+      }
+
+      if (res.status === 401) {
+        accessToken = null;
+        setLoggedInUI(false);
+        throw new Error("Session expired — please sign in again.");
+      }
+
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
+
+      if (!res.ok) {
+        const detail =
+          data && typeof data === "object" && data.detail
+            ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))
+            : res.status + " " + res.statusText;
+        throw new Error(detail);
+      }
+      return data;
+    }
+
+    function confBadge(confidence) {
+      if (confidence == null || Number.isNaN(Number(confidence))) {
+        return '<span class="badge red">conf —</span>';
+      }
+      const c = Number(confidence);
+      let cls = "red";
+      if (c >= 0.9) cls = "green";
+      else if (c >= 0.7) cls = "amber";
+      return '<span class="badge ' + cls + '">conf ' + c.toFixed(2) + "</span>";
+    }
+
+    function formatValue(value) {
+      if (value === null || value === undefined) return '<span class="muted">—</span>';
+      if (typeof value === "object") {
+        try {
+          return escapeHtml(JSON.stringify(value, null, 2));
+        } catch (_) {
+          return escapeHtml(String(value));
+        }
+      }
+      const s = String(value);
+      return s === "" ? '<span class="muted">(empty)</span>' : escapeHtml(s);
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function truncate(s, n) {
+      if (s == null) return "—";
+      const t = String(s);
+      return t.length > n ? t.slice(0, n - 1) + "…" : t;
+    }
+
+    /* ---------- Login ---------- */
+    async function loginRequest(username, password) {
+      let res;
+      try {
+        res = await fetch(API_BASE + "/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+      } catch (err) {
+        throw new Error(
+          "Network/CORS failure talking to " + API_BASE +
+          ". Enable CORSMiddleware on the API or serve this page same-origin. " +
+          String(err && err.message ? err.message : err)
+        );
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data && data.detail) || (res.status + " " + res.statusText)
+        );
+      }
+      return data;
+    }
+
+    el("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showError("");
+      el("btnLogin").disabled = true;
+      el("loginLoading").classList.remove("hidden");
+      try {
+        const username = el("username").value.trim();
+        const password = el("password").value;
+        const data = await loginRequest(username, password);
+        accessToken = data.access_token;
+        setLoggedInUI(true);
+        el("headerMeta").textContent = "Signed in as " + username;
+        await loadPortfolio();
+      } catch (err) {
+        showError(err.message || String(err));
+      } finally {
+        el("btnLogin").disabled = false;
+        el("loginLoading").classList.add("hidden");
+      }
+    });
+
+    el("btnLogout").addEventListener("click", () => {
+      accessToken = null;
+      showError("");
+      setLoggedInUI(false);
+    });
+
+    el("btnBack").addEventListener("click", () => {
+      showError("");
+      el("viewDetail").classList.add("hidden");
+      el("btnBack").classList.add("hidden");
+      el("viewPortfolio").classList.remove("hidden");
+    });
+
+    el("btnRefresh").addEventListener("click", () => loadPortfolio());
+
+    /* ---------- Portfolio ---------- */
+    async function loadPortfolio() {
+      showError("");
+      el("viewDetail").classList.add("hidden");
+      el("btnBack").classList.add("hidden");
+      el("viewPortfolio").classList.remove("hidden");
+      el("portfolioCard").classList.add("hidden");
+      el("portfolioLoading").classList.remove("hidden");
+
+      try {
+        const leases = await api("/api/leases");
+        const tbody = el("portfolioBody");
+        tbody.innerHTML = "";
+        if (!leases || !leases.length) {
+          tbody.innerHTML =
+            '<tr><td colspan="6" class="muted">No leases found.</td></tr>';
+        } else {
+          for (const lease of leases) {
+            const tr = document.createElement("tr");
+            tr.dataset.id = lease.id;
+            tr.innerHTML =
+              "<td><strong>" + escapeHtml(lease.name || "—") + "</strong></td>" +
+              '<td class="ellipsis" title="' + escapeHtml(lease.tenant || "") + '">' +
+                escapeHtml(truncate(lease.tenant, 40)) + "</td>" +
+              '<td class="ellipsis" title="' + escapeHtml(lease.landlord || "") + '">' +
+                escapeHtml(truncate(lease.landlord, 40)) + "</td>" +
+              "<td>" + escapeHtml(lease.expiration || "—") + "</td>" +
+              '<td class="num">' + Number(lease.needs_review_count || 0) + "</td>" +
+              '<td class="num">' + Number(lease.obligation_count || 0) + "</td>";
+            tr.addEventListener("click", () => openLease(lease.id));
+            tbody.appendChild(tr);
+          }
+        }
+        el("portfolioCard").classList.remove("hidden");
+      } catch (err) {
+        showError(err.message || String(err));
+      } finally {
+        el("portfolioLoading").classList.add("hidden");
+      }
+    }
+
+    /* ---------- Detail ---------- */
+    async function openLease(id) {
+      showError("");
+      el("viewPortfolio").classList.add("hidden");
+      el("viewDetail").classList.remove("hidden");
+      el("btnBack").classList.remove("hidden");
+      el("detailCard").classList.add("hidden");
+      el("detailLoading").classList.remove("hidden");
+
+      try {
+        const lease = await api("/api/leases/" + encodeURIComponent(id));
+        el("detailCard").innerHTML = renderDetail(lease);
+        el("detailCard").classList.remove("hidden");
+      } catch (err) {
+        showError(err.message || String(err));
+      } finally {
+        el("detailLoading").classList.add("hidden");
+      }
+    }
+
+    function renderField(field) {
+      const page =
+        field.page != null
+          ? '<span class="badge page">p. ' + escapeHtml(String(field.page)) + "</span>"
+          : "";
+      const review = field.needs_review
+        ? '<span class="badge review">needs review</span>'
+        : "";
+      const snippet =
+        field.snippet
+          ? '<details class="snippet"><summary>Source snippet</summary>' +
+            '<div class="snippet-body">' + escapeHtml(field.snippet) + "</div></details>"
+          : "";
+
+      return (
+        '<div class="field">' +
+          '<div class="field-top">' +
+            '<span class="field-key">' + escapeHtml(field.field_key) + "</span>" +
+            '<div class="badges">' +
+              confBadge(field.confidence) +
+              page +
+              review +
+            "</div>" +
+          "</div>" +
+          '<div class="field-value">' + formatValue(field.value) + "</div>" +
+          snippet +
+        "</div>"
+      );
+    }
+
+    function renderDetail(lease) {
+      let html =
+        '<div class="card">' +
+          '<div class="detail-header">' +
+            "<div><h2>" + escapeHtml(lease.name) + "</h2>" +
+            '<div class="muted" style="font-size:0.8rem;margin-top:0.25rem">' +
+              escapeHtml(lease.id) +
+            "</div></div>" +
+            '<span class="status-pill">' + escapeHtml(lease.status || "—") + "</span>" +
+          "</div>";
+
+      const fields = lease.fields || {};
+      for (const group of GROUP_ORDER) {
+        const list = fields[group] || [];
+        html +=
+          '<div class="group"><h3>' +
+          escapeHtml(GROUP_LABELS[group] || group) +
+          "</h3>";
+        if (!list.length) {
+          html += '<p class="muted" style="font-size:0.9rem">No fields in this group.</p>';
+        } else {
+          for (const f of list) html += renderField(f);
+        }
+        html += "</div>";
+      }
+
+      const obs = lease.obligations || [];
+      html += '<div class="obligations"><h3>Obligations</h3>';
+      if (!obs.length) {
+        html += '<p class="muted">No obligations derived for this lease.</p>';
+      } else {
+        for (const o of obs) {
+          const notice =
+            o.notice_window_days != null
+              ? "Notice window: " + o.notice_window_days + " days"
+              : "Notice window: —";
+          const deadline = o.deadline ? "Deadline: " + o.deadline : "Deadline: —";
+          html +=
+            '<div class="ob-row">' +
+              "<div>" +
+                '<div class="ob-kind">' + escapeHtml(o.kind) + "</div>" +
+                (o.description
+                  ? '<div class="ob-desc">' + escapeHtml(o.description) + "</div>"
+                  : "") +
+              "</div>" +
+              '<div class="ob-meta">' + escapeHtml(deadline) + "</div>" +
+              '<div class="ob-meta">' + escapeHtml(notice) + "</div>" +
+            "</div>";
+        }
+      }
+      html += "</div></div>";
+      return html;
+    }
+  </script>
+</body>
+</html>

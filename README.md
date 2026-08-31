@@ -97,24 +97,31 @@ extraction service publicly; gateway / web / risk-engine are not on that URL.*
 ## Evaluation
 
 Full write-up: [`EVAL_REPORT.md`](EVAL_REPORT.md) (Level 1, offline vs gold,
-`claude-sonnet-4-6`, prompt `v1.0`, 1 lease / 18 fields).
+`claude-sonnet-4-6`, prompt `v1.0`, 1 lease / 18 fields —
+`crowdstrike_capitol_tower_austin_lease`).
 
 | Metric | Value |
 |--------|-------|
-| Overall field accuracy | **100%** |
-| Page-citation accuracy | **100%** |
-| Failures | **0** |
+| Overall field accuracy | **72.2%** |
+| Page-citation accuracy | **61.5%** |
+| Fields scored | 18 |
+| Failures | **5** |
 
-**Per-group:** parties, term, financial, options, opex — all 100% on this gold
-lease (`crowdstrike_capitol_tower_austin_lease`).
+**Per-group:** parties / term 100%; opex 75%; options 66.7%; **financial 25%**
+(systematic weak spot — nested-schema empty output).
 
-**Confidence calibration:** the 0.0–0.5 bucket holds most low-confidence fields
-(N=12, 100% observed accuracy here) — dominated by abstentions (null/empty at
-confidence 0) that match gold, not invented values. The model declines rather
-than hallucinates, which is what makes the `needs_review` queue meaningful.
-(Some correct prose fields also sit at 0.3 after `CitationGuard`.)
+**Confidence calibration:** high-confidence fields (≥0.9) were 100% accurate;
+failures concentrate in the low-confidence buckets. The three genuine misses
+(`base_rent_schedule`, `escalation_type`, `security_deposit`) were all
+**0.0-confidence abstentions** — the model declines rather than hallucinates,
+which is what makes the `needs_review` queue meaningful.
 
-**Known failure cases (this run):** none — every scored field passed.
+**Known failure cases:**
+- Genuine (financial nested-schema empty): `base_rent_schedule`,
+  `escalation_type`, `security_deposit`
+- Measurement artifacts (noted honestly, not tuned away): `renewal_options`
+  (list-shape comparison vs gold simplification), `cam_structure` (gold
+  ambiguity — `gross` vs extracted `base_year`)
 
 ---
 
