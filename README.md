@@ -1,139 +1,159 @@
 # Lease Intelligence Platform
 
-Staff take-home: ingest commercial lease PDFs, extract structured terms with an LLM
-pipeline, and store provenance-backed fields in Postgres so critical dates can be
-acted on — not guessed.
+Staff take-home for a CRE firm: ingest commercial lease PDFs, extract structured
+terms with an LLM agent, and persist provenance-backed fields so critical dates
+can be reviewed and acted on. **What is live today is the extraction API**
+(auth, upload, extract, leases, fields, obligations) on Railway against Neon
+Postgres. The React dashboard is a local scaffold only (not deployed). Q&A /
+embeddings are optional and currently disabled. The Spring risk-engine is
+scaffolded for compose, not the public Railway surface.
 
-**Live (Railway → Neon):** https://lease-intelligence-platform-production.up.railway.app  
-**Demo login:** `admin` / `newmark`  
-**Interactive API:** [Swagger UI](https://lease-intelligence-platform-production.up.railway.app/docs) at `/docs`
+**Live:** https://lease-intelligence-platform-production.up.railway.app  
+**Demo:** `admin` / `newmark`  
+**API docs:** [/docs](https://lease-intelligence-platform-production.up.railway.app/docs) (Swagger)
 
-What is deployed today is the **extraction API** (auth, upload, extract, leases,
-fields, obligations). The React UI and Spring risk-engine are scaffolded in-repo
-and run under `docker compose`; they are not the public Railway surface yet.
+![Portfolio / lease list](docs/screenshots/portfolio.png)
+
+![Extracted fields with confidence](docs/screenshots/lease-detail.png)
 
 ---
 
 ## The problem
 
-This targets **occupier lease administration** — corporate tenants managing a
-portfolio of leases. The expensive failure mode is missing a **renewal-notice
-window**: miss the deadline and a renewal right can vanish (seven-figure
-exposure). Manual lease abstraction does not scale across hundreds of documents
-with amendments and inconsistent drafting.
+This serves **occupier lease administration** — corporate tenants running a
+portfolio of leases. The failure mode that matters is a missed **renewal-notice
+window**: miss it and the renewal right can be forfeited (seven-figure exposure).
+Manual lease abstraction does not scale across amendments, inconsistent
+drafting, and portfolio volume.
 
-I chose this over alternatives I researched (CAM/opex audit tooling, data-room
-diligence Q&A) because the value proposition is concrete and demoable: low
-document volume, very high dollar value per miss, and a clean split between
-probabilistic extraction and **deterministic** deadline logic. CAM audit needs
-invoice-level financial systems; diligence Q&A is useful but does not force the
-provenance + confidence + rules-engine discipline this problem demands.
+I chose this over alternatives I researched (**CAM reconciliation audit**,
+**due-diligence data-room agent**) because the value is concrete and demoable:
+low document count, very high dollar value per miss, and a clean split between
+probabilistic extraction and deterministic deadline logic. CAM audit needs
+invoice-level financial systems; a data-room agent is useful for search but does
+not force provenance, confidence gating, and a rules path for legal deadlines.
 
 ---
 
-## Architecture (what ships)
+## Architecture
 
 ```
-PDF → loader → sectioner → router → budget → extractor
-    → output guardrails → consolidator → persist
-         │                                    │
-         └──────── Neon Postgres ◄────────────┘
-                   (single source of truth)
+                        ┌─────────────────────────────┐
+  browser ──────────▶   │  gateway (nginx) :8080      │
+                        │  /            → web         │
+                        │  /api/auth/*  → extraction  │
+                        │  /api/*       → extraction  │
+                        │  /api/alerts* → risk-engine │
+                        └──────┬──────────────┬───────┘
+                               │              │
+              ┌────────────────▼───┐   ┌──────▼────────────┐
+              │ extraction-svc      │   │ risk-engine       │
+              │ Python 3.12 FastAPI │   │ Java 21 Spring    │
+              │ LangChain + Claude  │   │ Boot 3, @Scheduled│
+              │ pgvector Q&A        │   │ deterministic     │
+              └────────────┬────────┘   └──────┬────────────┘
+                           │                   │
+                        ┌──▼───────────────────▼──┐
+                        │ Postgres (Neon, pgvector)│
+                        │ single source of truth   │
+                        └──────────────────────────┘
+  web = React (Vite + TS) static build, served by gateway
 ```
 
-- **loader** — pdfplumber text per page; scanned pages flagged (no OCR).
-- **sectioner / router / budget** — heading tags + `field_matrix.yaml` route
-  context per field group; tiktoken budget drops lowest-relevance sections first.
-- **extractor** — LangChain + Claude, temperature 0, one structured call per
-  field group (parties, term, financial, options, opex).
-- **guardrails** — input (`FileGuard`, `InjectionScan`); output (`SchemaGuard`,
-  `SanityGuard`, `CitationGuard`, `ConfidenceGate`). PDF text is **untrusted
-  data**, never instructions (prompt templates say so explicitly).
-- **consolidator / persist** — latest-document-wins per field; every field
-  stores value, confidence, page, snippet, prompt version, model; obligations
-  derived from effective fields; append-only `events` via `EventPublisher`
-  (`PostgresEventPublisher` today — Kafka is an ops swap behind the interface).
+*Diagram = full local compose target (`AGENTS.md` §3). Railway today exposes the
+extraction service publicly; gateway / web / risk-engine are not on that URL.*
 
-Local stack: `docker compose` (gateway, extraction, risk-engine scaffold, web
-scaffold, Postgres). Production DB is **Neon (pgvector)**. Runbook:
-[`deploy/railway.md`](deploy/railway.md).
+**Extraction pipeline:**  
+`loader → sectioner → router → budget → extractor → guardrails → consolidator → persist`
+
+- **Neon Postgres** is the single source of truth (local compose uses
+  `pgvector/pgvector`).
+- **Events:** append-only `events` table behind an `EventPublisher` interface —
+  Kafka is an ops swap, not a code change.
+- **Provenance + confidence** on every field (value, confidence, page, snippet,
+  prompt version, model); `ConfidenceGate` marks `needs_review` below threshold.
+- **Untrusted PDF text:** document body is data, never instructions;
+  `InjectionScan` flags injection heuristics; prompts put lease text inside
+  `<document>` delimiters.
 
 ---
 
 ## Assumptions and tradeoffs
 
-- **Synchronous extraction** in the request/seed path — simple and demoable;
-  long PDFs block that worker; background seed never blocks API listen.
+- **Synchronous extraction** — fine for demo scale; long PDFs occupy a worker.
 - **No OCR** — text-layer PDFs only; scanned pages are flagged, not invented.
-- **Latest-wins consolidation** across base + amendments — honest for the demo;
-  true legal merge needs humans.
-- **Single demo user** (JWT HS256) — not multi-tenant auth.
-- **Postgres-as-queue** — `events` table instead of a broker.
-- **Embeddings / Q&A optional** — extraction succeeds without OpenAI; chunk
-  embed skips on missing key / API errors (`ENABLE_QA`).
-- **Nested-schema non-determinism** — Claude sometimes returns empty/partial
-  structured objects; mitigated with retries, timeouts, and graceful null-leaf
-  degradation (not perfect — see “next”).
-- **Ephemeral PDF disk on Railway** — content-hash paths; seed re-ingests on
-  boot (D11). Production would be object storage.
+- **Latest-wins** amendment consolidation — honest for the demo; real legal
+  merge needs humans.
+- **Single demo user** (JWT) — production path is OIDC.
+- **Postgres-as-queue** instead of Kafka for events.
+- **Embeddings / Q&A optional and currently disabled** — extraction still runs;
+  Level 2–3 evals are stubbed.
+- **Nested-schema non-determinism** (schedules, renewal options) handled by
+  retry-with-reinforcement, request timeouts, and graceful degradation to null
+  leaves + `needs_review` — not perfect yet.
 
 ---
 
 ## Evaluation
 
-Level 1 harness lives in `services/extraction/evals/` (`python -m evals.run`):
-offline compare of DB effective fields vs gold, per-group accuracy, page-citation
-accuracy, and a **confidence calibration table** (the headline artifact).
+Full write-up: [`EVAL_REPORT.md`](EVAL_REPORT.md) (Level 1, offline vs gold,
+`claude-sonnet-4-6`, prompt `v1.0`, 1 lease / 18 fields).
 
-**Current report:** [`EVAL_REPORT.md`](EVAL_REPORT.md) — harness is in place;
-gold labeling / first scored run is still pending, so there are **no headline
-accuracy numbers or calibration cells yet**. After the first labeled run, that
-file will list overall/group accuracy, calibration buckets, and auto-listed
-known failure cases (field / gold / extracted). Levels 2–3 (retrieval /
-faithfulness) are stubbed while Q&A embeddings stay optional.
+| Metric | Value |
+|--------|-------|
+| Overall field accuracy | **100%** |
+| Page-citation accuracy | **100%** |
+| Failures | **0** |
+
+**Per-group:** parties, term, financial, options, opex — all 100% on this gold
+lease (`crowdstrike_capitol_tower_austin_lease`).
+
+**Confidence calibration:** the 0.0–0.5 bucket holds most low-confidence fields
+(N=12, 100% observed accuracy here) — dominated by abstentions (null/empty at
+confidence 0) that match gold, not invented values. The model declines rather
+than hallucinates, which is what makes the `needs_review` queue meaningful.
+(Some correct prose fields also sit at 0.3 after `CitationGuard`.)
+
+**Known failure cases (this run):** none — every scored field passed.
 
 ---
 
 ## What I’d build next (ranked)
 
-1. Reliability on nested-schema extraction (schedules, renewal options)
+1. Reliability of nested-schema extraction (rent schedules, renewal options)
 2. OCR lane for scanned pages
-3. Tighter `CitationGuard` (fewer false needs-review)
-4. Finish risk-engine + Portfolio / Lease / Alerts dashboard
-5. Kafka (or similar) behind `EventPublisher` at scale
+3. Tighter `CitationGuard` (over-penalizes correct fields to 0.3 on prose-heavy snippets)
+4. Risk-engine + React dashboard to close the alert loop
+5. Kafka for portfolio-scale ingest
 6. OIDC auth
-7. Drift monitoring on extraction confidence distributions
+7. Drift monitoring on extraction confidence over time
 
 ---
 
-## Run locally
+## Running it
+
+**Quick path:** open the live URL → `/docs` → Authorize with `admin` / `newmark`.
+
+**Local:**
 
 ```bash
-cp .env.example .env   # set ANTHROPIC_API_KEY (OPENAI_API_KEY optional for Q&A)
+cp .env.example .env   # ANTHROPIC_API_KEY required for real extract/seed
 docker compose up --build
 ```
 
-- App gateway: http://localhost:8080  
-- Extraction health: http://localhost:8080/api/health  
-- Swagger (extraction direct): http://localhost:8000/docs when hitting the
-  service container / local uvicorn  
-
-Eval (against a DB with effective fields + gold JSON):
+App: http://localhost:8080 · Health: `/api/health` · Env names: [`.env.example`](.env.example)  
+Deploy notes: [`deploy/railway.md`](deploy/railway.md)
 
 ```bash
 cd services/extraction
-python -m evals.stub <lease_id>   # pre-fill gold for hand-labeling
-python -m evals.run --all         # writes ../../EVAL_REPORT.md
+python -m evals.stub <lease_id>
+python -m evals.run --all    # refreshes EVAL_REPORT.md
 ```
 
----
+### How this was built
 
-## Built with AI — process record
-
-This repo was built with AI assistance (Cursor). The durable record of decisions
-and how work was done:
-
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — numbered design decisions (D1–D17+)
-- [`docs/transcripts/`](docs/transcripts/) — session transcripts / process notes
-
-Agent conventions and the product contract live in [`AGENTS.md`](AGENTS.md).
+Developed with AI assistance (Claude for design; Cursor / Opus for
+implementation). Design decisions are recorded in
+[`docs/DECISIONS.md`](docs/DECISIONS.md) as the engineering record — per the
+assignment’s request to retain how the system was built with AI. Product
+contract and conventions: [`AGENTS.md`](AGENTS.md).

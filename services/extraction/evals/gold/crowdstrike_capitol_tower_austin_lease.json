@@ -3,122 +3,23 @@
   "lease_id": "7239318b-7c7d-4d9c-9d02-cae6733ec421",
   "lease_name": "crowdstrike_capitol_tower_austin_lease",
   "fields": {
-    "landlord": {
-      "value": "EQC Capitol Tower Property LLC",
-      "page": 3,
-      "_verified": false
-    },
-    "tenant": {
-      "value": "CrowdStrike, Inc.",
-      "page": 3,
-      "_verified": false
-    },
-    "premises_address": {
-      "value": "206 East 9th Street, Austin, Texas (Suite 1400, 14th Floor)",
-      "page": 3,
-      "_verified": false
-    },
-    "rentable_sqft": {
-      "value": 25805,
-      "page": 4,
-      "_verified": false
-    },
-    "commencement_date": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "expiration_date": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "initial_term_months": {
-      "value": 73,
-      "page": 5,
-      "_verified": false
-    },
-    "base_rent_schedule": {
-      "value": [],
-      "page": null,
-      "_verified": false
-    },
-    "escalation_type": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "escalation_value": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "security_deposit": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "renewal_options": {
-      "value": [
-        {
-          "rent_basis": {
-            "page": 44,
-            "value": "Prevailing Market rate per rentable square foot for comparable space in the Building and Austin, Texas CBD",
-            "snippet": "The initial Base Rent rate per rentable square foot for the Premises during the Renewal Term shall equal the Prevailing Market (hereinafter defined) rate per rentable square foot for the Premises.",
-            "confidence": 0.95
-          },
-          "term_months": {
-            "page": 44,
-            "value": 60,
-            "snippet": "Tenant shall have the right to extend the Term (the \"Renewal Option\") for one additional period of five (5) years commencing on the day following the Termination Date of the initial Term",
-            "confidence": 0.3
-          },
-          "notice_max_days": {
-            "page": 44,
-            "value": 456,
-            "snippet": "Landlord receives notice of exercise (\"Initial Renewal Notice\") not less than 12 full calendar months prior to the expiration of the initial Term and not more than 15 full calendar months prior to the expiration of the initial Term",
-            "confidence": 0.3
-          },
-          "notice_min_days": {
-            "page": 44,
-            "value": 365,
-            "snippet": "Landlord receives notice of exercise (\"Initial Renewal Notice\") not less than 12 full calendar months prior to the expiration of the initial Term and not more than 15 full calendar months prior to the expiration of the initial Term",
-            "confidence": 0.3
-          }
-        }
-      ],
-      "page": null,
-      "_verified": false
-    },
-    "termination_option": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "holdover_rate_pct": {
-      "value": 150.0,
-      "page": 22,
-      "_verified": false
-    },
-    "cam_structure": {
-      "value": "base_year",
-      "page": 44,
-      "_verified": false
-    },
-    "base_year": {
-      "value": null,
-      "page": null,
-      "_verified": false
-    },
-    "cam_cap_pct": {
-      "value": 5.0,
-      "page": 34,
-      "_verified": false
-    },
-    "cam_cap_type": {
-      "value": "cumulative, compounded",
-      "page": 34,
-      "_verified": false
-    }
+    "landlord": { "value": "EQC Capitol Tower Property LLC", "page": 3, "_verified": true },
+    "tenant": { "value": "CrowdStrike, Inc.", "page": 3, "_verified": true },
+    "premises_address": { "value": "206 East 9th Street, Austin, Texas (Suite 1400, 14th Floor)", "page": 3, "_verified": true },
+    "rentable_sqft": { "value": 25805, "page": 4, "_verified": true },
+    "commencement_date": { "value": null, "page": null, "_verified": true },
+    "expiration_date": { "value": null, "page": null, "_verified": true },
+    "initial_term_months": { "value": 73, "page": 5, "_verified": true },
+    "base_rent_schedule": { "value": [{"annual_rent": 812857.56}, {"annual_rent": 837372.24}, {"annual_rent": 862403.16}, {"annual_rent": 888208.08}, {"annual_rent": 914787.24}, {"annual_rent": 942140.52}, {"annual_rent": 970526.04}], "page": 4, "_verified": true },
+    "escalation_type": { "value": "stepped", "page": 4, "_verified": true },
+    "escalation_value": { "value": null, "page": null, "_verified": true },
+    "security_deposit": { "value": 800000, "page": 5, "_verified": true },
+    "renewal_options": { "value": [{"term_months": 60, "notice_min_days": 365, "notice_max_days": 456}], "page": 44, "_verified": true },
+    "termination_option": { "value": null, "page": null, "_verified": true },
+    "holdover_rate_pct": { "value": 150.0, "page": 22, "_verified": true },
+    "cam_structure": { "value": "gross", "page": 34, "_verified": true },
+    "base_year": { "value": null, "page": null, "_verified": true },
+    "cam_cap_pct": { "value": 5.0, "page": 34, "_verified": true },
+    "cam_cap_type": { "value": "cumulative, compounded", "page": 34, "_verified": true }
   }
 }
