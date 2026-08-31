@@ -237,6 +237,31 @@ class TestExtractionSchema:
         round_trip = LeaseExtraction.model_validate(dumped)
         assert round_trip == model
 
+    def test_group_missing_fields_yields_null_leaves(self) -> None:
+        """Absent / null group fields must parse as value=None, confidence=0 — no exception."""
+        from app.agent.schema import Term
+
+        model = Term.model_validate(
+            {
+                "commencement_date": None,
+                # expiration_date intentionally omitted
+                "initial_term_months": {"value": None},
+            }
+        )
+        assert model.commencement_date is not None
+        assert model.commencement_date.value is None
+        assert model.commencement_date.confidence == 0.0
+        assert model.expiration_date is not None
+        assert model.expiration_date.value is None
+        assert model.expiration_date.confidence == 0.0
+        assert model.initial_term_months is not None
+        assert model.initial_term_months.value is None
+        assert model.initial_term_months.confidence == 0.0
+
+        empty = Term.model_validate({})
+        assert empty.commencement_date.confidence == 0.0
+        assert empty.expiration_date.value is None
+
     def test_extra_fields_forbidden(self) -> None:
         payload = dict(SAMPLE_EXTRACTION_JSON)
         payload["unexpected"] = "nope"

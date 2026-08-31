@@ -1,126 +1,190 @@
 """Pydantic extraction contract — field groups from AGENTS.md §6.
 
 Every leaf field is an ExtractedValue[T] carrying value, confidence, page, and snippet.
-Missing fields use value=null and confidence=0.
+Missing / null fields coerce to value=null and confidence=0 (never hard-required).
 """
 
 from __future__ import annotations
 
-from datetime import date
-from typing import Generic, Literal, TypeVar
+from datetime import date as DateType
+from typing import Any, Generic, Literal, TypeVar, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
+
+NULL_LEAF: dict[str, Any] = {
+    "value": None,
+    "confidence": 0.0,
+    "page": None,
+    "snippet": None,
+}
 
 
 class ExtractedValue(BaseModel, Generic[T]):
     """Single extracted field with provenance (AGENTS.md §6)."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    # strict=False so LLM JSON date/number strings coerce into typed values.
+    model_config = ConfigDict(extra="forbid", strict=False)
 
     value: T | None = None
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     page: int | None = None
     snippet: str | None = None
 
 
-class PartiesPremises(BaseModel):
+def null_extracted() -> ExtractedValue[Any]:
+    """Empty leaf used when the model omits a field."""
+    return ExtractedValue(value=None, confidence=0.0, page=None, snippet=None)
+
+
+def _is_extracted_value_annotation(annotation: Any) -> bool:
+    """True for ExtractedValue[...] or ExtractedValue[...] | None."""
+    if annotation is None:
+        return False
+    origin = get_origin(annotation)
+    if origin is ExtractedValue:
+        return True
+    if isinstance(annotation, type) and issubclass(annotation, ExtractedValue):
+        return True
+    # Union / Optional — ExtractedValue[T] becomes a concrete subclass under Pydantic.
+    for arg in get_args(annotation):
+        if arg is type(None):
+            continue
+        if get_origin(arg) is ExtractedValue:
+            return True
+        if isinstance(arg, type) and issubclass(arg, ExtractedValue):
+            return True
+    return False
+
+
+def _is_list_annotation(annotation: Any) -> bool:
+    origin = get_origin(annotation)
+    if origin is list:
+        return True
+    if isinstance(annotation, type) and annotation is list:
+        return True
+    for arg in get_args(annotation):
+        if get_origin(arg) is list:
+            return True
+    return False
+
+
+class _CoerceNullLeavesMixin(BaseModel):
+    """Missing / null ExtractedValue fields → null leaves; null lists → []."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_missing_and_null_leaves(cls, data: Any) -> Any:
+        if data is None:
+            data = {}
+        elif isinstance(data, BaseModel):
+            data = data.model_dump(mode="python")
+        if not isinstance(data, dict):
+            return data
+
+        out = dict(data)
+        for name, field_info in cls.model_fields.items():
+            annotation = field_info.annotation
+            if _is_extracted_value_annotation(annotation):
+                if name not in out or out[name] is None:
+                    out[name] = dict(NULL_LEAF)
+            elif _is_list_annotation(annotation):
+                if name not in out or out[name] is None:
+                    out[name] = []
+        return out
+
+
+class PartiesPremises(_CoerceNullLeavesMixin):
     """Group A — parties_premises."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    landlord: ExtractedValue[str]
-    tenant: ExtractedValue[str]
-    premises_address: ExtractedValue[str]
-    rentable_sqft: ExtractedValue[int]
+    landlord: ExtractedValue[str] | None = None
+    tenant: ExtractedValue[str] | None = None
+    premises_address: ExtractedValue[str] | None = None
+    rentable_sqft: ExtractedValue[int] | None = None
 
 
-class Term(BaseModel):
+class Term(_CoerceNullLeavesMixin):
     """Group B — term."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    commencement_date: ExtractedValue[date]
-    expiration_date: ExtractedValue[date]
-    initial_term_months: ExtractedValue[int]
+    commencement_date: ExtractedValue[DateType] | None = None
+    expiration_date: ExtractedValue[DateType] | None = None
+    initial_term_months: ExtractedValue[int] | None = None
 
 
-class BaseRentPeriod(BaseModel):
+class BaseRentPeriod(_CoerceNullLeavesMixin):
     """One row in base_rent_schedule."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    period_start: ExtractedValue[date]
-    period_end: ExtractedValue[date]
-    annual_rent: ExtractedValue[float]
-    monthly_rent: ExtractedValue[float]
+    period_start: ExtractedValue[DateType] | None = None
+    period_end: ExtractedValue[DateType] | None = None
+    annual_rent: ExtractedValue[float] | None = None
+    monthly_rent: ExtractedValue[float] | None = None
 
 
 EscalationType = Literal["fixed_pct", "cpi", "stepped", "none"]
 CamStructure = Literal["net", "gross", "base_year", "stop"]
 
 
-class Financial(BaseModel):
+class Financial(_CoerceNullLeavesMixin):
     """Group C — financial."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    base_rent_schedule: list[BaseRentPeriod]
-    escalation_type: ExtractedValue[EscalationType]
-    escalation_value: ExtractedValue[float]
-    security_deposit: ExtractedValue[float]
+    base_rent_schedule: list[BaseRentPeriod] | None = None
+    escalation_type: ExtractedValue[EscalationType] | None = None
+    escalation_value: ExtractedValue[float] | None = None
+    security_deposit: ExtractedValue[float] | None = None
 
 
-class RenewalOption(BaseModel):
+class RenewalOption(_CoerceNullLeavesMixin):
     """One renewal option entry."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    term_months: ExtractedValue[int]
-    notice_min_days: ExtractedValue[int]
-    notice_max_days: ExtractedValue[int]
-    rent_basis: ExtractedValue[str]
+    term_months: ExtractedValue[int] | None = None
+    notice_min_days: ExtractedValue[int] | None = None
+    notice_max_days: ExtractedValue[int] | None = None
+    rent_basis: ExtractedValue[str] | None = None
 
 
-class TerminationOption(BaseModel):
-    """Termination option sub-structure. Sub-fields may be partially present (D8)."""
+class TerminationOption(_CoerceNullLeavesMixin):
+    """Termination option sub-structure. Sub-fields may be partially present (D8).
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    Field is named `date`; annotation uses DateType so it does not shadow datetime.date.
+    """
 
-    date: ExtractedValue[date]
-    notice_days: ExtractedValue[int]
-    fee: ExtractedValue[float]
+    date: ExtractedValue[DateType] | None = None
+    notice_days: ExtractedValue[int] | None = None
+    fee: ExtractedValue[float] | None = None
 
 
-class OptionsObligations(BaseModel):
+class OptionsObligations(_CoerceNullLeavesMixin):
     """Group D — options_obligations."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    renewal_options: list[RenewalOption]
+    renewal_options: list[RenewalOption] | None = None
     termination_option: TerminationOption | None = None
-    holdover_rate_pct: ExtractedValue[float]
+    holdover_rate_pct: ExtractedValue[float] | None = None
 
 
-class Opex(BaseModel):
+class Opex(_CoerceNullLeavesMixin):
     """Group E — opex."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    cam_structure: ExtractedValue[CamStructure]
-    base_year: ExtractedValue[int]
-    cam_cap_pct: ExtractedValue[float]
-    cam_cap_type: ExtractedValue[str]
+    cam_structure: ExtractedValue[CamStructure] | None = None
+    base_year: ExtractedValue[int] | None = None
+    cam_cap_pct: ExtractedValue[float] | None = None
+    cam_cap_type: ExtractedValue[str] | None = None
 
 
 class LeaseExtraction(BaseModel):
     """Aggregated extraction output across all five field groups."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=False)
 
     parties_premises: PartiesPremises
     term: Term
     financial: Financial
     options_obligations: OptionsObligations
     opex: Opex
+
+
+def empty_group(model_cls: type[BaseModel]) -> BaseModel:
+    """Build a group with all null leaves (confidence 0)."""
+    return model_cls.model_validate({})

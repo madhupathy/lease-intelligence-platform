@@ -10,7 +10,6 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 
 from app.agent.llm import build_chat_anthropic
-
 from app.agent.prompts import render_prompt_template
 from app.agent.schema import (
     Financial,
@@ -18,6 +17,7 @@ from app.agent.schema import (
     OptionsObligations,
     PartiesPremises,
     Term,
+    empty_group,
 )
 from app.agent.types import ExtractGroupResult
 
@@ -58,12 +58,24 @@ def _extract_usage_metadata(response: Any) -> tuple[int, int]:
     return int(usage_meta.get("input_tokens", 0)), int(usage_meta.get("output_tokens", 0))
 
 
+def _coerce_group_model(model_cls: type[BaseModel], parsed: Any) -> BaseModel:
+    """Validate LLM output; missing/null fields become null leaves."""
+    if parsed is None:
+        raise ValueError("Structured output was empty")
+    if isinstance(parsed, BaseModel):
+        return model_cls.model_validate(parsed.model_dump(mode="python"))
+    return model_cls.model_validate(parsed)
+
+
 def extract_group(
     group_name: str,
     context: str,
     llm: BaseChatModel | None = None,
 ) -> ExtractGroupResult:
-    """One LLM call per field group, temperature 0, retry once on schema-invalid."""
+    """One LLM call per field group, temperature 0, retry once on schema-invalid.
+
+    After retry, degrade to an empty (null-leaf) group instead of crashing the pipeline.
+    """
     if group_name not in GROUP_MODELS:
         raise ValueError(f"Unknown extraction group: {group_name}")
 
@@ -84,30 +96,35 @@ def extract_group(
         raw = response.get("raw")
         if raw is not None:
             tokens_in, tokens_out = _extract_usage_metadata(raw)
-        if parsed is None:
-            raise ValidationError.from_exception_data(
-                model_cls.__name__,
-                [{"type": "missing", "loc": (), "msg": "Structured output was empty"}],
-            )
-        validated = model_cls.model_validate(parsed.model_dump())
+        validated = _coerce_group_model(model_cls, parsed)
     except (ValidationError, ValueError, TypeError) as first_error:
         logger.warning("Schema validation failed for %s, retrying once: %s", group_name, first_error)
-        retry_messages = messages + [
-            HumanMessage(content=f"Validation error — fix output to match schema: {first_error}")
-        ]
-        response = structured.invoke(retry_messages)
-        parsed = response["parsed"]
-        raw = response.get("raw")
-        if raw is not None:
-            retry_in, retry_out = _extract_usage_metadata(raw)
-            tokens_in += retry_in
-            tokens_out += retry_out
-        if parsed is None:
-            raise ValidationError.from_exception_data(
-                model_cls.__name__,
-                [{"type": "missing", "loc": (), "msg": "Structured output was empty on retry"}],
+        try:
+            retry_messages = messages + [
+                HumanMessage(content=f"Validation error — fix output to match schema: {first_error}")
+            ]
+            response = structured.invoke(retry_messages)
+            parsed = response["parsed"]
+            raw = response.get("raw")
+            if raw is not None:
+                retry_in, retry_out = _extract_usage_metadata(raw)
+                tokens_in += retry_in
+                tokens_out += retry_out
+            if parsed is None:
+                logger.warning(
+                    "Structured output empty for %s after retry — degrading to null leaves",
+                    group_name,
+                )
+                validated = empty_group(model_cls)
+            else:
+                validated = _coerce_group_model(model_cls, parsed)
+        except (ValidationError, ValueError, TypeError) as retry_error:
+            logger.warning(
+                "Schema validation failed for %s after retry — degrading to null leaves: %s",
+                group_name,
+                retry_error,
             )
-        validated = model_cls.model_validate(parsed.model_dump())
+            validated = empty_group(model_cls)
 
     return ExtractGroupResult(
         group_name=group_name,
