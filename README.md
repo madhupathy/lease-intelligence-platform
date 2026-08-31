@@ -1,5 +1,9 @@
 # Lease Intelligence Platform
 
+**Live demo:** open [/app](https://lease-intelligence-platform-production.up.railway.app/app),
+log in `admin` / `newmark` → five real leases extracted with per-field confidence,
+provenance, and derived renewal-notice obligations.
+
 Staff take-home for a CRE firm: ingest commercial lease PDFs, extract structured
 terms with an LLM agent, and persist provenance-backed fields so critical dates
 can be reviewed and acted on. **What is live today** is the extraction API
@@ -39,6 +43,19 @@ not force provenance, confidence gating, and a rules path for legal deadlines.
 
 ## Architecture
 
+**Deployed today**
+
+```
+  browser ──▶  extraction-svc (FastAPI + Claude)
+               │  /api/*   REST (auth, leases, extract)
+               │  /docs    Swagger
+               │  /app     vanilla JS dashboard
+               └──────────▶ Neon Postgres (pgvector)
+                            single source of truth
+```
+
+**Full topology (local / target)**
+
 ```
                         ┌─────────────────────────────┐
   browser ──────────▶   │  gateway (nginx) :8080      │
@@ -59,12 +76,9 @@ not force provenance, confidence gating, and a rules path for legal deadlines.
                         │ Postgres (Neon, pgvector)│
                         │ single source of truth   │
                         └──────────────────────────┘
-  web = React (Vite + TS) static build, served by gateway
+  web (compose target) = React/Vite scaffold via gateway;
+  live UI today = vanilla JS at extraction /app
 ```
-
-*Diagram = full local compose target (`AGENTS.md` §3). Railway today exposes the
-extraction service (API + vanilla `/app` dashboard); gateway / React web /
-risk-engine are not on that URL.*
 
 **Extraction pipeline:**  
 `loader → sectioner → router → budget → extractor → guardrails → consolidator → persist`
@@ -114,6 +128,11 @@ Full write-up: [`EVAL_REPORT.md`](EVAL_REPORT.md) (Level 1, offline vs gold,
 | Page-citation accuracy | **61.5%** |
 | Fields scored | 18 |
 | Failures | **5** |
+
+The 72.2% is a single run where the financial group hit its known
+non-deterministic empty-output path (a prior run extracted those fields
+correctly); the headline is that every genuine miss was a zero-confidence
+abstention, not a wrong answer.
 
 **Per-group:** parties / term 100%; opex 75%; options 66.7%; **financial 25%**
 (systematic weak spot — nested-schema empty output).
