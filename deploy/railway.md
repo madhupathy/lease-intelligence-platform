@@ -196,11 +196,11 @@ Compose defaults (also in `.env.example`):
 On every start (`services/extraction/docker-entrypoint.sh`):
 
 1. `alembic upgrade head`
-2. `python -m app.db.seed` — idempotent demo user from `DEMO_USER` / `DEMO_PASSWORD`
-3. `python seed/seed.py` — portfolio PDFs from `seed/pdfs/` **only if**:
+2. `python -m app.db.seed` — idempotent demo user from `DEMO_USER` / `DEMO_PASSWORD`,
+   then portfolio PDFs from `seed/pdfs/` **only if**:
    - `leases` table is empty, **and**
    - `ANTHROPIC_API_KEY` **and** `OPENAI_API_KEY` are set
-4. `uvicorn` on `0.0.0.0:$PORT`
+3. `uvicorn` on `0.0.0.0:$PORT`
 
 The Dockerfile **copies `seed/`** (including `seed/pdfs/`) into the image so first
 boot on Railway can extract without an external volume. PDF storage under
