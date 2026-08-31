@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.agent.schema import ExtractedValue, OptionsObligations, Term, TerminationOption
-from app.guardrails.citation_guard import CitationGuard
+from app.agent.schema import ExtractedValue, PartiesPremises, Term
+from app.guardrails.citation_guard import CitationGuard, normalize_citation_text
 from app.guardrails.context import GuardContext
 
 
@@ -44,3 +44,35 @@ def test_citation_guard_passes_matching_snippet() -> None:
     )
     result = CitationGuard().check(ctx)
     assert result.verdict.value == "pass_"
+    assert term.commencement_date.confidence == 0.9
+
+
+def test_citation_guard_passes_whitespace_and_case_differing_snippet() -> None:
+    """Snippets with newlines / multi-spaces / case diffs must not be penalized."""
+    parties = PartiesPremises(
+        landlord=ExtractedValue(
+            value="EQC CAPITOL TOWER PROPERTY LLC",
+            confidence=0.95,
+            page=1,
+            snippet="EQC  CAPITOL\nTOWER PROPERTY   LLC",
+        ),
+        tenant=ExtractedValue(
+            value="CrowdStrike, Inc.",
+            confidence=0.92,
+            page=1,
+            snippet="CrowdStrike,\nInc.",
+        ),
+        premises_address=ExtractedValue(value=None, confidence=0.0, page=None, snippet=None),
+        rentable_sqft=ExtractedValue(value=None, confidence=0.0, page=None, snippet=None),
+    )
+    page = "Landlord: eqc capitol tower property llc\nTenant: CROWDSTRIKE, INC. Suite 100"
+    ctx = GuardContext(group_name="parties_premises", group_model=parties, page_texts={1: page})
+
+    assert normalize_citation_text(parties.landlord.snippet) in normalize_citation_text(page)
+
+    result = CitationGuard().check(ctx)
+    assert result.verdict.value == "pass_"
+    assert parties.landlord.confidence == 0.95
+    assert parties.tenant.confidence == 0.92
+    assert "landlord" not in ctx.needs_review_fields
+    assert "tenant" not in ctx.needs_review_fields

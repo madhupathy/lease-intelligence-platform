@@ -46,14 +46,39 @@ def seed_demo_user() -> None:
 
 
 def reconcile_effective_flags() -> None:
-    """Re-run consolidation for all leases (heals rows stuck with effective=false)."""
+    """Re-run consolidation + obligation derivation; heal list-field confidence."""
     from app.agent.consolidator import consolidate
+    from app.agent.persist import aggregate_list_confidence, derive_obligations_for_lease
+    from app.db.models import ExtractedField
+
+    list_keys = ("base_rent_schedule", "renewal_options")
 
     with SessionLocal() as session:
         lease_ids = session.scalars(select(Lease.id)).all()
         for lease_id in lease_ids:
             count = consolidate(lease_id, session)
             logger.info("reconcile effective flags: lease_id=%s effective=%s", lease_id, count)
+
+            list_fields = session.scalars(
+                select(ExtractedField).where(
+                    ExtractedField.lease_id == lease_id,
+                    ExtractedField.field_key.in_(list_keys),
+                )
+            ).all()
+            for field in list_fields:
+                if isinstance(field.value_json, list):
+                    field.confidence = aggregate_list_confidence(field.value_json)
+                    field.needs_review = (
+                        len(field.value_json) == 0
+                        or float(field.confidence or 0) < settings.review_threshold
+                    )
+
+            obligations = derive_obligations_for_lease(session, lease_id)
+            logger.info(
+                "reconcile obligations: lease_id=%s count=%s",
+                lease_id,
+                len(obligations),
+            )
         session.commit()
 
 
