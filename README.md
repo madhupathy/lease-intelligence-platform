@@ -185,6 +185,42 @@ lease. Next: gold across all five seed leases; Level 2 (recall@k, MRR) and Level
 prompt-version bumps; extraction determinism tests (same input × N, measure
 variance) to quantify nested-schema non-determinism.
 
+### RAG / Retrieval roadmap
+
+The retrieval (Q&A) layer is scaffolded but currently disabled (embeddings
+unfunded); these are the improvements it needs to be production-grade:
+
+1. **Hybrid search.** Today: pure semantic (pgvector cosine). Legal text relies on
+   exact terms of art (“Base Rent”, “Commencement Date”) where lexical/BM25 often
+   beats vector search. Next: hybrid retrieval (BM25 + vector, reciprocal-rank
+   fusion), validated against a retrieval eval — I expect it to outperform pure
+   semantic on this document type.
+
+2. **Retrieval evaluation.** Today: Level 2/3 evals are stubbed. Next: recall@k
+   and MRR against a labelled gold Q&A set, and generation faithfulness via an
+   LLM-judge — so retrieval quality is measured, not assumed. This also lets me
+   justify embedding-model and chunk-size choices empirically instead of by
+   default.
+
+3. **Semantic response cache (cost).** Today: no Q&A response caching — repeated
+   questions hit the LLM every time. Next: embed the incoming question and return a
+   cached answer when a prior question is above a similarity threshold; combine
+   with per-lease scoping. Extends the existing content-hash idempotency cache
+   (extraction) and embedding cache (chunks).
+
+4. **Prompt caching.** Today: not used. The extraction and Q&A prompts have a large
+   static prefix (schema + instructions + injection notice). Next: enable
+   Anthropic prompt caching on that prefix to cut input-token cost and latency on
+   every call — a near-free win given the stable prompt structure.
+
+5. **Chunking & embedding tuning.** Today: section-aware recursive chunking
+   (~800 tokens, 100 overlap) chosen because leases carry explicit structural
+   boundaries (Articles/Sections); OpenAI `text-embedding-3-small` at native 1536
+   dims chosen for no-padding + cost. Chunking feeds the Q&A retrieval path only;
+   primary field extraction uses section-routed structured extraction, not RAG.
+   Next: tune chunk size/overlap and compare embedding models against the retrieval
+   eval above, rather than relying on sensible defaults.
+
 ---
 
 ## Running it
