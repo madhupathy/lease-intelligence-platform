@@ -256,8 +256,9 @@ python -m evals.run --all    # refreshes EVAL_REPORT.md
 ### How this was built
 
 Developed with AI assistance (Claude for design; Cursor / Opus for
-implementation). Design decisions are recorded in
-[`docs/DECISIONS.md`](docs/DECISIONS.md); the step-by-step prompt sequence used to
-build the system is in [`docs/PROMPT_LOG.md`](docs/PROMPT_LOG.md) — per the
-assignment’s request to retain prompts. Product contract and conventions:
-[`AGENTS.md`](AGENTS.md).
+implementation). Per the assignment’s request to retain prompts, the build
+record is three artifacts: [`docs/PROMPT_LOG.md`](docs/PROMPT_LOG.md) (the
+step-by-step prompt sequence, condensed), [`docs/transcripts/`](docs/transcripts/)
+(verbatim Cursor session exports — the actual build conversations), and
+[`docs/DECISIONS.md`](docs/DECISIONS.md) (the running design-decision log with
+corrections). Product contract and conventions: [`AGENTS.md`](AGENTS.md).
