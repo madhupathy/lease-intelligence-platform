@@ -1,26 +1,37 @@
 # Lease Intelligence Platform
 
-**Live demo:** open [/app](https://lease-intelligence-platform-production.up.railway.app/app),
-log in `admin` / `newmark` → five real leases extracted with per-field confidence,
-provenance, and derived renewal-notice obligations.
+An LLM agent that ingests commercial lease PDFs and extracts structured,
+provenance-backed terms — so critical dates (like renewal-notice windows) surface
+automatically and can be reviewed with a citation to the source clause.
 
-Staff take-home for a CRE firm: ingest commercial lease PDFs, extract structured
-terms with an LLM agent, and persist provenance-backed fields so critical dates
-can be reviewed and acted on. **What is live today** is the extraction API
-(auth, upload, extract, leases, fields, obligations) on Railway against Neon
-Postgres, plus a **vanilla JS standalone dashboard** served same-origin at
-`/app`. The full React/Vite dashboard remains a local scaffold only. Q&A /
-embeddings are optional and currently disabled. The Spring risk-engine is
-scaffolded for compose, not the public Railway surface.
+Deployed on Railway (Neon Postgres): the extraction API and a lightweight
+vanilla-JS dashboard at `/app` (deliberately no build step — zero deploy
+dependencies for the live demo). The full React/Vite dashboard remains a local
+scaffold.
 
-**Live:** https://lease-intelligence-platform-production.up.railway.app  
-**Dashboard:** https://lease-intelligence-platform-production.up.railway.app/app  
-**Demo:** `admin` / `newmark`  
-**API docs:** [/docs](https://lease-intelligence-platform-production.up.railway.app/docs) (Swagger)
+- **Live dashboard:** https://lease-intelligence-platform-production.up.railway.app/app (`admin` / `newmark`)
+- **API + Swagger:** https://lease-intelligence-platform-production.up.railway.app/docs
+- **Eval report:** [EVAL_REPORT.md](EVAL_REPORT.md)
+- **How it was built (AI-assisted):** [docs/DECISIONS.md](docs/DECISIONS.md)
+
 <br>
 <img src="docs/screenshots/portfolio.png" width="700"><br>
 <img src="docs/screenshots/lease-detail.png" width="700">
 
+> **Core design principle: the LLM extracts, deterministic code decides.**
+> The model fills a typed schema with a confidence score, page number, and
+> verbatim snippet for every field. A separate rules layer derives legal
+> deadlines from those fields. You never want a language model *computing* a
+> renewal deadline — you want it *reading*, and auditable code deciding. This
+> split is why every value is traceable and why low confidence means "a human
+> should look," not a fabricated answer.
+
+> **Scope, honestly.** This is a working extraction core with a live demo UI —
+> not a finished product. The retrieval / Q&A layer is built but disabled
+> (embeddings unfunded); the risk engine is minimal; auth is a single demo
+> user; there is no observability instrumentation yet. These are deliberate
+> cuts to ship a narrow thing that runs in the time given — each is ranked in
+> the roadmap below, not hidden.
 
 ---
 
@@ -49,7 +60,7 @@ not force provenance, confidence gating, and a rules path for legal deadlines.
   browser ──▶  extraction-svc (FastAPI + Claude)
                │  /api/*   REST (auth, leases, extract)
                │  /docs    Swagger
-               │  /app     vanilla JS dashboard
+               │  /app     dashboard
                └──────────▶ Neon Postgres (pgvector)
                             single source of truth
 ```
@@ -76,8 +87,7 @@ not force provenance, confidence gating, and a rules path for legal deadlines.
                         │ Postgres (Neon, pgvector)│
                         │ single source of truth   │
                         └──────────────────────────┘
-  web (compose target) = React/Vite scaffold via gateway;
-  live UI today = vanilla JS at extraction /app
+  web = React/Vite scaffold (compose target via gateway)
 ```
 
 **Extraction pipeline:**  
@@ -247,6 +257,7 @@ python -m evals.run --all    # refreshes EVAL_REPORT.md
 
 Developed with AI assistance (Claude for design; Cursor / Opus for
 implementation). Design decisions are recorded in
-[`docs/DECISIONS.md`](docs/DECISIONS.md) as the engineering record — per the
-assignment’s request to retain how the system was built with AI. Product
-contract and conventions: [`AGENTS.md`](AGENTS.md).
+[`docs/DECISIONS.md`](docs/DECISIONS.md); the step-by-step prompt sequence used to
+build the system is in [`docs/PROMPT_LOG.md`](docs/PROMPT_LOG.md) — per the
+assignment’s request to retain prompts. Product contract and conventions:
+[`AGENTS.md`](AGENTS.md).
