@@ -9,7 +9,7 @@ vanilla-JS dashboard at `/app` (deliberately no build step — zero deploy
 dependencies for the live demo). The full React/Vite dashboard remains a local
 scaffold.
 
-- **Live dashboard:** https://lease-intelligence-platform-production.up.railway.app/app (`admin` / `newmark`)
+- **Live dashboard:** https://lease-intelligence-platform-production.up.railway.app/app
 - **API + Swagger:** https://lease-intelligence-platform-production.up.railway.app/docs
 - **Eval report:** [EVAL_REPORT.md](EVAL_REPORT.md)
 - **How it was built (AI-assisted):** [docs/DECISIONS.md](docs/DECISIONS.md)
